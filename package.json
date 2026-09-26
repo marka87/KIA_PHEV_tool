@@ -1,0 +1,12 @@
+{
+  "name": "kia-ceed-phev-tracker",
+  "version": "1.0.0",
+  "description": "Lade- und Tank-Kosten-Tracker für Kia Ceed SW PHEV",
+  "scripts": {
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "start": "npm --prefix backend start",
+    "dev": "npm --prefix backend run dev",
+    "backup": "npm --prefix backend run backup",
+    "test": "npm --prefix backend test"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "username": "deine-kia-email@beispiel.de",
+  "password": "dein-kia-passwort",
+  "pin": "",
+  "region": 1,
+  "brand": 1,
+  "server_url": "http://localhost:3000",
+  "vehicle_id": 1,
+  "force_refresh": false
+}
