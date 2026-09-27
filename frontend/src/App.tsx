@@ -401,7 +401,22 @@ export function App() {
       showToast(`Befehl '${payload.action}' wird an Fahrzeug gesendet...`, 'warn');
       const res = await sendKiaRemoteControl(payload);
       showToast(res.message || 'Befehl erfolgreich ausgeführt!');
-      await handleKiaSync(false);
+
+      // Immediately update lock and charging state in the UI
+      if (stats?.latestSnapshot) {
+        const newLocked = payload.action === 'lock' ? 1 : (payload.action === 'unlock' ? 0 : stats.latestSnapshot.is_locked);
+        const newCharging = payload.action === 'start_charge' ? 1 : (payload.action === 'stop_charge' ? 0 : stats.latestSnapshot.is_charging);
+        setStats(prev => prev && prev.latestSnapshot ? {
+          ...prev,
+          latestSnapshot: {
+            ...prev.latestSnapshot,
+            is_locked: newLocked,
+            is_charging: newCharging,
+          }
+        } : prev);
+      }
+
+      await loadDashboard();
     } catch (err: any) {
       alert(err.message || 'Remote-Befehl fehlgeschlagen');
     } finally {

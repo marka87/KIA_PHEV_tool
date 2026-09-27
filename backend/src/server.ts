@@ -794,6 +794,25 @@ app.post('/api/kia/control', asyncHandler(async (req, res) => {
       return res.status(400).json({ error: data.error || `Remote-Befehl '${action}' fehlgeschlagen` });
     }
 
+    // Immediately update latest snapshot state in database so the UI reflects the action
+    if (action === 'lock') {
+      try {
+        db.prepare('UPDATE vehicle_snapshots SET is_locked = 1 WHERE id = (SELECT id FROM vehicle_snapshots ORDER BY zeitpunkt DESC, id DESC LIMIT 1)').run();
+      } catch {}
+    } else if (action === 'unlock') {
+      try {
+        db.prepare('UPDATE vehicle_snapshots SET is_locked = 0 WHERE id = (SELECT id FROM vehicle_snapshots ORDER BY zeitpunkt DESC, id DESC LIMIT 1)').run();
+      } catch {}
+    } else if (action === 'start_charge') {
+      try {
+        db.prepare('UPDATE vehicle_snapshots SET is_charging = 1 WHERE id = (SELECT id FROM vehicle_snapshots ORDER BY zeitpunkt DESC, id DESC LIMIT 1)').run();
+      } catch {}
+    } else if (action === 'stop_charge') {
+      try {
+        db.prepare('UPDATE vehicle_snapshots SET is_charging = 0 WHERE id = (SELECT id FROM vehicle_snapshots ORDER BY zeitpunkt DESC, id DESC LIMIT 1)').run();
+      } catch {}
+    }
+
     logger.info(`[KiaRemote] Befehl '${action}' erfolgreich ausgeführt:`, data.message);
     res.json(data);
   } catch (err: any) {
