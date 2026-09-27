@@ -126,6 +126,7 @@ export function initDatabase() {
     tire_pressure_warning: 'INTEGER DEFAULT 0',
     washer_fluid_warning: 'INTEGER DEFAULT 0',
     smart_key_warning: 'INTEGER DEFAULT 0',
+    quelle: "TEXT NOT NULL DEFAULT 'manuell'",
   };
 
   for (const [colName, colType] of Object.entries(columnsToAdd)) {

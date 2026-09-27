@@ -51,3 +51,12 @@ export const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || '';
 export const LOG_DIR = process.env.LOG_DIR
   ? path.resolve(process.env.LOG_DIR)
   : path.resolve(projectRoot, 'logs');
+
+// 5. Automatic Kia Sync Scheduler
+export const AUTO_SYNC_ENABLED = process.env.AUTO_SYNC_ENABLED !== 'false';
+export const AUTO_SYNC_CRON = process.env.AUTO_SYNC_CRON || (
+  process.env.AUTO_SYNC_HOURS
+    ? `0 ${process.env.AUTO_SYNC_HOURS} * * *`
+    : '0 7,20 * * *'
+);
+export const AUTO_SYNC_TIMEZONE = process.env.AUTO_SYNC_TIMEZONE || 'Europe/Vienna';

@@ -76,6 +76,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Fetch telemetry without sending to server")
     parser.add_argument("--server-url", help="Override backend server URL")
     parser.add_argument("--vehicle-id", type=int, help="Override vehicle ID in database")
+    parser.add_argument("--quelle", default="kia_connect", help="Source tag for snapshot (e.g. kia_connect, auto_sync)")
     args = parser.parse_args()
 
     # Load configuration
@@ -257,7 +258,7 @@ def main():
             "tire_pressure_warning": 1 if tpms_warning else 0,
             "washer_fluid_warning": 1 if washer_fluid_warning else 0,
             "smart_key_warning": 1 if smart_key_warning else 0,
-            "quelle": "kia_connect"
+            "quelle": args.quelle
         }
 
         if snapshot_payload["odometer_km"] is None:

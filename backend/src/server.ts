@@ -16,6 +16,13 @@ import {
   calculateFuelMetrics,
   calculateBreakEven,
 } from './calculations.js';
+import { runKiaSync } from './kia_sync_service.js';
+import {
+  initScheduler,
+  executeScheduledSync,
+  getSchedulerStatus,
+  notifySyncSuccess,
+} from './scheduler.js';
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -26,6 +33,9 @@ const kiaControlScript = path.resolve(__dirname, '../../kia_service/control_kia.
 
 // Initialize DB schema & defaults
 initDatabase();
+
+// Initialize automatic Kia sync scheduler (standard: 07:00 & 20:00 Uhr)
+initScheduler();
 
 // Setup daily automatic backup (runs once every 24h)
 setInterval(() => {
@@ -675,67 +685,26 @@ app.post('/api/kia/config', (req, res) => {
 
 app.post('/api/kia/sync', asyncHandler(async (req, res) => {
   const force = Boolean(req.body.force);
-  logger.info(`[KiaSync] Synchronisierung gestartet (force=${force})...`);
+  const result = await runKiaSync({ force, quelle: 'kia_connect' });
 
-  // Read and decrypt credentials in memory to pass safely to Python
-  let decryptedPassword = '';
-  let decryptedPin = '';
-  let username = '';
-  if (fs.existsSync(kiaConfigPath)) {
-    try {
-      const cfg = JSON.parse(fs.readFileSync(kiaConfigPath, 'utf-8'));
-      username = cfg.username || '';
-      decryptedPassword = decryptString(cfg.password || '');
-      decryptedPin = decryptString(cfg.pin || '');
-    } catch (e: any) {
-      logger.error('[KiaSync] Konfigurationsfehler:', e.message);
-    }
+  if (!result.success) {
+    return res.status(400).json({ error: result.error || 'Kia Connect Synchronisation fehlgeschlagen' });
   }
 
-  const args = [kiaSyncScript, '--json', '--server-url', `http://localhost:${PORT}`];
-  if (force) args.push('--force');
+  await notifySyncSuccess(result.data);
+  res.json(result.data);
+}));
 
-  try {
-    const { stdout, stderr } = await execFileAsync('python', args, {
-      timeout: 90000,
-      env: {
-        ...process.env,
-        KIA_USERNAME: username,
-        KIA_PASSWORD: decryptedPassword,
-        KIA_PIN: decryptedPin,
-        BASIC_AUTH_USER: process.env.BASIC_AUTH_USER || '',
-        BASIC_AUTH_PASSWORD: process.env.BASIC_AUTH_PASSWORD || '',
-      },
-    });
-    const output = stdout.trim();
-    let data;
-    try {
-      data = JSON.parse(output);
-    } catch {
-      logger.error('[KiaSync] Unerwartete Skript-Ausgabe:', output || stderr);
-      return res.status(500).json({ error: 'Unerwartete Skript-Ausgabe: ' + (output || stderr) });
-    }
+app.get('/api/kia/scheduler', (req, res) => {
+  res.json(getSchedulerStatus());
+});
 
-    if (!data.success) {
-      logger.warn('[KiaSync] Synchronisation meldet Fehler:', data.error);
-      return res.status(400).json({ error: data.error || 'Kia Connect Synchronisation fehlgeschlagen' });
-    }
-
-    logger.info(`[KiaSync] Synchronisation erfolgreich: Tacho=${data.snapshot?.odometer_km} km, SoC=${data.snapshot?.soc_percent}%`);
-    res.json(data);
-  } catch (err: any) {
-    const errDetail = err.stderr?.trim() || err.stdout?.trim() || err.message;
-    logger.error('[KiaSync] Ausführungsfehler:', errDetail);
-    if (err.stdout) {
-      try {
-        const data = JSON.parse(err.stdout.trim());
-        if (data.error) {
-          return res.status(400).json({ error: data.error });
-        }
-      } catch {}
-    }
-    res.status(500).json({ error: 'Fehler beim Ausführen von sync_kia.py: ' + errDetail });
+app.post('/api/kia/sync/auto', asyncHandler(async (req, res) => {
+  const result = await executeScheduledSync();
+  if (!result.success) {
+    return res.status(400).json({ error: result.error || 'Automatischer Kia-Sync fehlgeschlagen' });
   }
+  res.json(result.data);
 }));
 
 app.post('/api/kia/control', asyncHandler(async (req, res) => {
