@@ -558,15 +558,26 @@ export function App() {
             </button>
           </nav>
 
-          {/* Connection / Sync indicator */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Header Controls: Kia Sync & Connection Status */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            <button
+              type="button"
+              className="btn-sync-header"
+              onClick={() => handleKiaSync(false)}
+              disabled={isKiaSyncing}
+              title="Aktuelle Daten von Kia Connect abrufen (Cloud-Cache)"
+            >
+              <RefreshCw size={14} className={isKiaSyncing ? 'spin' : ''} />
+              <span className="btn-sync-label">{isKiaSyncing ? 'Kia lädt...' : 'Kia Sync'}</span>
+            </button>
+
             {isOnline ? (
               <span className="badge badge-online" title="Verbunden mit Server">
-                <Wifi size={13} /> Online
+                <Wifi size={13} /> <span className="status-label">Online</span>
               </span>
             ) : (
               <span className="badge badge-offline" title="Offline-Modus: Daten werden lokal gespeichert">
-                <WifiOff size={13} /> Offline
+                <WifiOff size={13} /> <span className="status-label">Offline</span>
               </span>
             )}
             {pendingActions.length > 0 && (
@@ -585,49 +596,27 @@ export function App() {
         </div>
       </header>
 
-        {/* Main Container */}
-        <main className="container">
-          {/* Toast / Sync Banner */}
-          {toastMsg && (
-            <div className={`banner ${toastMsg.type === 'warn' ? 'banner-warning' : 'banner-success'}`}>
-              <span>{toastMsg.text}</span>
-              <button onClick={() => setToastMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>×</button>
-            </div>
-          )}
+      {/* Main Container */}
+      <main className="container">
+        {/* Toast / Sync Banner */}
+        {toastMsg && (
+          <div className={`banner ${toastMsg.type === 'warn' ? 'banner-warning' : 'banner-success'}`}>
+            <span>{toastMsg.text}</span>
+            <button onClick={() => setToastMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>×</button>
+          </div>
+        )}
 
-          {loading && !stats && (
-            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-              Lade Dashboard-Daten...
-            </div>
-          )}
+        {loading && !stats && (
+          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+            Lade Dashboard-Daten...
+          </div>
+        )}
 
-          {/* ========================================================================= */}
-          {/* TAB: DASHBOARD */}
-          {/* ========================================================================= */}
-          {activeTab === 'dashboard' && (
+        {/* ========================================================================= */}
+        {/* TAB: DASHBOARD */}
+        {/* ========================================================================= */}
+        {activeTab === 'dashboard' && (
           <div>
-            {/* Quick Actions for Mobile */}
-            <div className="quick-bar">
-              <button className="btn btn-secondary" style={{ borderColor: 'var(--ev-color)' }} onClick={() => setActiveTab('charge')}>
-                <Zap size={16} color="var(--ev-color)" /> + Ladung
-              </button>
-              <button className="btn btn-secondary" style={{ borderColor: 'var(--fuel-color)' }} onClick={() => setActiveTab('fuel')}>
-                <Fuel size={16} color="var(--fuel-color)" /> + Tanken
-              </button>
-              <button className="btn btn-secondary" onClick={() => setActiveTab('snapshot')}>
-                <Gauge size={16} /> + Tacho
-              </button>
-              <button
-                className="btn btn-secondary"
-                style={{ borderColor: '#38bdf8' }}
-                onClick={() => handleKiaSync(false)}
-                disabled={isKiaSyncing}
-                title="Aktuelle Daten (km, Akku) von Kia Connect abrufen"
-              >
-                <RefreshCw size={16} color="#38bdf8" className={isKiaSyncing ? 'spin' : ''} />
-                {isKiaSyncing ? 'Kia lädt...' : 'Kia Sync'}
-              </button>
-            </div>
 
             {/* Unlogged Charge Suggestions Banner */}
             {chargeSuggestions.length > 0 && (

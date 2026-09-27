@@ -228,3 +228,4 @@ test('ChargeSuggestions: Verwerfen eines Vorschlags (dismiss) markiert Status al
   const pending = getPendingSuggestions(1, testDb);
   assert.equal(pending.length, 0);
 });
+
