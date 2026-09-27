@@ -24,6 +24,10 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
+  Snowflake,
+  Power,
+  Radio,
+  Sliders,
 } from 'lucide-react';
 import {
   fetchDashboardStats,
@@ -43,6 +47,7 @@ import {
   getKiaStatus,
   saveKiaConfig,
   syncKiaConnect,
+  sendKiaRemoteControl,
 } from './api';
 import type {
   DashboardStats,
@@ -102,6 +107,14 @@ export function App() {
   const [kiaPinInput, setKiaPinInput] = useState('');
   const [kiaForceRefresh, setKiaForceRefresh] = useState(false);
   const [showVehicleMap, setShowVehicleMap] = useState(false);
+
+  // Kia Remote Controls state
+  const [isRemoteLoading, setIsRemoteLoading] = useState(false);
+  const [remoteActionActive, setRemoteActionActive] = useState<string | null>(null);
+  const [climateTemp, setClimateTemp] = useState(21.0);
+  const [climateDefrost, setClimateDefrost] = useState(false);
+  const [climateSteering, setClimateSteering] = useState(false);
+  const [showClimateControls, setShowClimateControls] = useState(false);
 
   // Helper toast notification
   const showToast = (text: string, type: 'success' | 'warn' = 'success') => {
@@ -365,6 +378,9 @@ export function App() {
   const handleKiaSync = async (force: boolean = false) => {
     if (isKiaSyncing) return;
     setIsKiaSyncing(true);
+    if (force) {
+      showToast('📡 Live-Abfrage: Fahrzeug wird geweckt (dauert ca. 20-30 Sek.)...', 'warn');
+    }
     try {
       const res = await syncKiaConnect(force);
       showToast(`Kia Sync erfolgreich! Tacho: ${formatNum(res.odometer_km, 0)} km, Akku: ${res.soc_percent}%`);
@@ -374,6 +390,29 @@ export function App() {
       alert(err.message || 'Fehler beim Abrufen der Kia-Daten');
     } finally {
       setIsKiaSyncing(false);
+    }
+  };
+
+  const handleRemoteCommand = async (payload: {
+    action: 'lock' | 'unlock' | 'start_climate' | 'stop_climate' | 'start_charge' | 'stop_charge';
+    temp?: number;
+    duration?: number;
+    defrost?: boolean;
+    steering_wheel?: boolean;
+  }) => {
+    if (isRemoteLoading) return;
+    setIsRemoteLoading(true);
+    setRemoteActionActive(payload.action);
+    try {
+      showToast(`Befehl '${payload.action}' wird an Fahrzeug gesendet...`, 'warn');
+      const res = await sendKiaRemoteControl(payload);
+      showToast(res.message || 'Befehl erfolgreich ausgeführt!');
+      await handleKiaSync(false);
+    } catch (err: any) {
+      alert(err.message || 'Remote-Befehl fehlgeschlagen');
+    } finally {
+      setIsRemoteLoading(false);
+      setRemoteActionActive(null);
     }
   };
 
@@ -741,22 +780,43 @@ export function App() {
                       <span>Fahrzeug-Status & Wächter ({stats.vehicle?.modell || 'Kia Ceed SW PHEV'})</span>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         Stand: {formatDate(snap.zeitpunkt)}
                       </span>
                       {kiaStatus?.configured && (
-                        <button
-                          type="button"
-                          onClick={() => handleKiaSync(Boolean(kiaForceRefresh))}
-                          disabled={isKiaSyncing}
-                          className="btn-secondary"
-                          style={{ padding: '3px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                          title="Jetzt Telemetrie aktualisieren"
-                        >
-                          <RefreshCw size={12} className={isKiaSyncing ? 'spin' : ''} />
-                          {isKiaSyncing ? 'Laden...' : 'Aktualisieren'}
-                        </button>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleKiaSync(false)}
+                            disabled={isKiaSyncing}
+                            className="btn-secondary"
+                            style={{ padding: '3px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            title="Liest den schnellen Cloud-Zustand (1-2 Sek., batterieschonend)"
+                          >
+                            <RefreshCw size={11} className={isKiaSyncing ? 'spin' : ''} />
+                            Schnell-Sync
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleKiaSync(true)}
+                            disabled={isKiaSyncing}
+                            className="btn-secondary"
+                            style={{
+                              padding: '3px 8px',
+                              fontSize: '0.75rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              borderColor: 'rgba(56, 189, 248, 0.4)',
+                              color: '#38bdf8',
+                            }}
+                            title="Weckt das Auto per Mobilfunk auf (ca. 20-30 Sek.) für frische Live-Sensordaten"
+                          >
+                            <Radio size={11} className={isKiaSyncing ? 'spin' : ''} />
+                            Live-Sync
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1058,6 +1118,255 @@ export function App() {
                             style={{ border: 0, display: 'block' }}
                             src={`https://www.openstreetmap.org/export/embed.html?bbox=${snap.location_lon - 0.005}%2C${snap.location_lat - 0.003}%2C${snap.location_lon + 0.005}%2C${snap.location_lat + 0.003}&layer=mapnik&marker=${snap.location_lat}%2C${snap.location_lon}`}
                           />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Remote Control Bar */}
+                  {kiaStatus?.configured && (
+                    <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border-color)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ fontSize: '0.88rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Radio size={16} style={{ color: 'var(--accent)' }} />
+                          <span>Fahrzeug-Fernsteuerung (Remote-Befehle)</span>
+                        </div>
+                        {isRemoteLoading && (
+                          <span style={{ fontSize: '0.8rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <RefreshCw size={12} className="spin" /> Befehl '{remoteActionActive}' wird ausgeführt...
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Remote Buttons Grid */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+                        {/* Lock Button */}
+                        <button
+                          type="button"
+                          disabled={isRemoteLoading}
+                          onClick={() => handleRemoteCommand({ action: 'lock' })}
+                          className="btn-secondary"
+                          style={{
+                            padding: '8px 10px',
+                            fontSize: '0.82rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            fontWeight: 600,
+                            background: 'rgba(16, 185, 129, 0.1)',
+                            borderColor: 'rgba(16, 185, 129, 0.3)',
+                            color: '#10b981',
+                          }}
+                          title="Auto verriegeln"
+                        >
+                          <Lock size={15} /> Verriegeln
+                        </button>
+
+                        {/* Unlock Button */}
+                        <button
+                          type="button"
+                          disabled={isRemoteLoading}
+                          onClick={() => {
+                            if (window.confirm('Möchtest du das Fahrzeug wirklich aus der Ferne entriegeln?')) {
+                              handleRemoteCommand({ action: 'unlock' });
+                            }
+                          }}
+                          className="btn-secondary"
+                          style={{
+                            padding: '8px 10px',
+                            fontSize: '0.82rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            fontWeight: 600,
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            borderColor: 'rgba(239, 68, 68, 0.3)',
+                            color: '#ef4444',
+                          }}
+                          title="Auto aufschließen"
+                        >
+                          <Unlock size={15} /> Entriegeln
+                        </button>
+
+                        {/* Climate Toggle Button */}
+                        <button
+                          type="button"
+                          disabled={isRemoteLoading}
+                          onClick={() => setShowClimateControls(!showClimateControls)}
+                          className="btn-secondary"
+                          style={{
+                            padding: '8px 10px',
+                            fontSize: '0.82rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            fontWeight: 600,
+                            background: climate.is_on ? 'rgba(56, 189, 248, 0.2)' : 'rgba(56, 189, 248, 0.08)',
+                            borderColor: 'rgba(56, 189, 248, 0.3)',
+                            color: '#38bdf8',
+                          }}
+                          title="Standklimatisierung einstellen"
+                        >
+                          <Snowflake size={15} /> {climate.is_on ? 'Klima aktiv' : 'Standklima'} {showClimateControls ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                        </button>
+
+                        {/* Charging Start / Stop */}
+                        {snap.is_charging ? (
+                          <button
+                            type="button"
+                            disabled={isRemoteLoading}
+                            onClick={() => handleRemoteCommand({ action: 'stop_charge' })}
+                            className="btn-secondary"
+                            style={{
+                              padding: '8px 10px',
+                              fontSize: '0.82rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              fontWeight: 600,
+                              background: 'rgba(245, 158, 11, 0.1)',
+                              borderColor: 'rgba(245, 158, 11, 0.3)',
+                              color: '#f59e0b',
+                            }}
+                            title="Laden beenden"
+                          >
+                            <Power size={15} /> Laden stoppen
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={isRemoteLoading || !snap.is_plugged_in}
+                            onClick={() => handleRemoteCommand({ action: 'start_charge' })}
+                            className="btn-secondary"
+                            style={{
+                              padding: '8px 10px',
+                              fontSize: '0.82rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              fontWeight: 600,
+                              background: 'rgba(16, 185, 129, 0.1)',
+                              borderColor: 'rgba(16, 185, 129, 0.3)',
+                              color: '#10b981',
+                              opacity: snap.is_plugged_in ? 1 : 0.6,
+                            }}
+                            title={snap.is_plugged_in ? 'Laden sofort starten' : 'Nur möglich, wenn Ladekabel angesteckt ist'}
+                          >
+                            <Zap size={15} /> Laden starten
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Expandable Climate Control Drawer */}
+                      {showClimateControls && (
+                        <div
+                          style={{
+                            marginTop: '10px',
+                            padding: '12px 14px',
+                            backgroundColor: 'var(--bg-input)',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border-color)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <Sliders size={15} style={{ color: '#38bdf8' }} />
+                              <span>Standklimatisierung konfigurieren</span>
+                            </div>
+
+                            {climate.is_on && (
+                              <button
+                                type="button"
+                                disabled={isRemoteLoading}
+                                onClick={() => handleRemoteCommand({ action: 'stop_climate' })}
+                                className="btn-secondary"
+                                style={{ padding: '3px 8px', fontSize: '0.75rem', color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}
+                              >
+                                Klima sofort ausschalten
+                              </button>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '14px', marginBottom: '12px' }}>
+                            {/* Temperature Stepper */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Wunsch-Temperatur:</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setClimateTemp(prev => Math.max(17.0, Math.round((prev - 0.5) * 10) / 10))}
+                                  className="btn-secondary"
+                                  style={{ padding: '2px 8px', fontSize: '0.85rem', fontWeight: 700 }}
+                                >
+                                  -
+                                </button>
+                                <span style={{ fontSize: '1rem', fontWeight: 700, minWidth: '48px', textAlign: 'center', color: '#38bdf8' }}>
+                                  {climateTemp.toFixed(1)}°C
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setClimateTemp(prev => Math.min(27.0, Math.round((prev + 0.5) * 10) / 10))}
+                                  className="btn-secondary"
+                                  style={{ padding: '2px 8px', fontSize: '0.85rem', fontWeight: 700 }}
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Defrost Checkbox */}
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', cursor: 'pointer', margin: 0 }}>
+                              <input
+                                type="checkbox"
+                                checked={climateDefrost}
+                                onChange={(e) => setClimateDefrost(e.target.checked)}
+                                style={{ cursor: 'pointer' }}
+                              />
+                              <span>Scheiben enteisen (Defrost)</span>
+                            </label>
+
+                            {/* Steering Wheel Checkbox */}
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', cursor: 'pointer', margin: 0 }}>
+                              <input
+                                type="checkbox"
+                                checked={climateSteering}
+                                onChange={(e) => setClimateSteering(e.target.checked)}
+                                style={{ cursor: 'pointer' }}
+                              />
+                              <span>Lenkradheizung</span>
+                            </label>
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                            <button
+                              type="button"
+                              disabled={isRemoteLoading}
+                              onClick={() =>
+                                handleRemoteCommand({
+                                  action: 'start_climate',
+                                  temp: climateTemp,
+                                  defrost: climateDefrost,
+                                  steering_wheel: climateSteering,
+                                  duration: 15,
+                                })
+                              }
+                              className="btn-primary"
+                              style={{
+                                padding: '6px 14px',
+                                fontSize: '0.82rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                              }}
+                            >
+                              <Power size={14} /> Vorklimatisierung jetzt starten (15 Min.)
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>

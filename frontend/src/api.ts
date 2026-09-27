@@ -326,3 +326,24 @@ export async function syncKiaConnect(force: boolean = false): Promise<any> {
   return data;
 }
 
+export interface KiaControlPayload {
+  action: 'lock' | 'unlock' | 'start_climate' | 'stop_climate' | 'start_charge' | 'stop_charge';
+  temp?: number;
+  duration?: number;
+  defrost?: boolean;
+  steering_wheel?: boolean;
+}
+
+export async function sendKiaRemoteControl(payload: KiaControlPayload): Promise<{ success: boolean; message: string; action: string; api_result?: string }> {
+  const res = await fetch(`${API_BASE}/kia/control`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || `Remote-Befehl '${payload.action}' fehlgeschlagen`);
+  }
+  return data;
+}
+

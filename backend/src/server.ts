@@ -22,6 +22,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const kiaConfigPath = path.resolve(__dirname, '../../kia_service/config.json');
 const kiaSyncScript = path.resolve(__dirname, '../../kia_service/sync_kia.py');
+const kiaControlScript = path.resolve(__dirname, '../../kia_service/control_kia.py');
 
 // Initialize DB schema & defaults
 initDatabase();
@@ -734,6 +735,79 @@ app.post('/api/kia/sync', asyncHandler(async (req, res) => {
       } catch {}
     }
     res.status(500).json({ error: 'Fehler beim Ausführen von sync_kia.py: ' + errDetail });
+  }
+}));
+
+app.post('/api/kia/control', asyncHandler(async (req, res) => {
+  const { action, temp = 21.0, duration = 15, defrost = false, steering_wheel = false } = req.body;
+
+  if (!action) {
+    return res.status(400).json({ error: 'Aktion ist erforderlich (z.B. lock, unlock, start_climate, stop_climate, start_charge, stop_charge)' });
+  }
+
+  logger.info(`[KiaRemote] Befehl '${action}' wird ausgeführt...`);
+
+  let decryptedPassword = '';
+  let decryptedPin = '';
+  let username = '';
+  if (fs.existsSync(kiaConfigPath)) {
+    try {
+      const cfg = JSON.parse(fs.readFileSync(kiaConfigPath, 'utf-8'));
+      username = cfg.username || '';
+      decryptedPassword = decryptString(cfg.password || '');
+      decryptedPin = decryptString(cfg.pin || '');
+    } catch (e: any) {
+      logger.error('[KiaRemote] Konfigurationsfehler:', e.message);
+    }
+  }
+
+  const args = [kiaControlScript, action, '--json'];
+  if (action === 'start_climate') {
+    args.push('--temp', String(temp));
+    args.push('--duration', String(duration));
+    if (defrost) args.push('--defrost');
+    if (steering_wheel) args.push('--steering-wheel');
+  }
+
+  try {
+    const { stdout, stderr } = await execFileAsync('python', args, {
+      timeout: 90000,
+      env: {
+        ...process.env,
+        KIA_USERNAME: username,
+        KIA_PASSWORD: decryptedPassword,
+        KIA_PIN: decryptedPin,
+      },
+    });
+
+    const output = stdout.trim();
+    let data;
+    try {
+      data = JSON.parse(output);
+    } catch {
+      logger.error('[KiaRemote] Unerwartete Skript-Ausgabe:', output || stderr);
+      return res.status(500).json({ error: 'Unerwartete Skript-Ausgabe: ' + (output || stderr) });
+    }
+
+    if (!data.success) {
+      logger.warn('[KiaRemote] Befehl meldet Fehler:', data.error);
+      return res.status(400).json({ error: data.error || `Remote-Befehl '${action}' fehlgeschlagen` });
+    }
+
+    logger.info(`[KiaRemote] Befehl '${action}' erfolgreich ausgeführt:`, data.message);
+    res.json(data);
+  } catch (err: any) {
+    const errDetail = err.stderr?.trim() || err.stdout?.trim() || err.message;
+    logger.error('[KiaRemote] Ausführungsfehler:', errDetail);
+    if (err.stdout) {
+      try {
+        const data = JSON.parse(err.stdout.trim());
+        if (data.error) {
+          return res.status(400).json({ error: data.error });
+        }
+      } catch {}
+    }
+    res.status(500).json({ error: `Fehler beim Ausführen von '${action}': ` + errDetail });
   }
 }));
 

@@ -126,7 +126,13 @@ def main():
         if force_refresh:
             if not args.json:
                 print("📡 Live-Abfrage an Fahrzeug wird gesendet (Force Refresh)...")
-            vm.force_refresh_all_vehicles_states()
+            try:
+                vm.force_refresh_all_vehicles_states()
+            except Exception as e:
+                if not args.json:
+                    print(f"⚠️ Live-Abfrage Warnung: {e}, lese Cloud-Zustand...")
+            # After forcing vehicle wake-up, load the updated telemetry properties
+            vm.update_all_vehicles_with_cached_state()
         else:
             if not args.json:
                 print("🔄 Abrufen des aktuellen Cloud-Cache-Zustands (batterieschonend)...")
@@ -149,6 +155,17 @@ def main():
         is_charging = getattr(vehicle, "ev_battery_is_charging", False)
         is_plugged = getattr(vehicle, "ev_battery_is_plugged_in", False)
         last_updated = vehicle.last_updated_at or datetime.now(timezone.utc)
+
+        # Fallback for odometer if Kia didn't return it in this frame
+        if odometer is None:
+            try:
+                db_resp = requests.get(f"{server_url}/api/dashboard/stats?vehicleId={vehicle_db_id}", timeout=5)
+                if db_resp.ok:
+                    last_snap = db_resp.json().get("latestSnapshot")
+                    if last_snap and last_snap.get("odometer_km"):
+                        odometer = last_snap.get("odometer_km")
+            except Exception:
+                pass
 
         # Kia Ceed SW PHEV: When parked with ignition off, Kia API often reports ev_driving_range = 0.0.
         # If so, estimate realistic EV range from battery SOC (WLTP baseline ~50 km).
