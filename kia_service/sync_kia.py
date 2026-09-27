@@ -23,9 +23,15 @@ if hasattr(sys.stderr, 'reconfigure'):
 import json
 import argparse
 import pickle
+import time
 from datetime import datetime, timezone
 import requests
 from hyundai_kia_connect_api import VehicleManager
+from hyundai_kia_connect_api.ApiImpl import ApiImplSession
+
+# Increase connection timeout from default 10s to 30s to prevent connect timeouts on slow routes / VPN
+ApiImplSession.HTTP_CONNECT_TIMEOUT = 30
+ApiImplSession.HTTP_READ_TIMEOUT = 60
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TOKEN_CACHE_FILE = os.path.join(SCRIPT_DIR, "token.cache")
@@ -118,9 +124,20 @@ def main():
             language="de"
         )
 
-        # Authenticate / refresh token
-        vm.check_and_refresh_token()
-        save_cached_token(vm.token)
+        # Authenticate / refresh token with retries
+        for attempt in range(1, 4):
+            try:
+                vm.check_and_refresh_token()
+                save_cached_token(vm.token)
+                break
+            except Exception as e:
+                err_str = str(e).lower()
+                if attempt < 3 and ("timeout" in err_str or "connection" in err_str or "reset" in err_str):
+                    if not args.json:
+                        print(f"⚠️ Verbindungstimeout zu Kia Connect (Versuch {attempt}/3). Warte 3s...")
+                    time.sleep(3)
+                else:
+                    raise
 
         # Fetch telemetry
         if force_refresh:
@@ -136,7 +153,18 @@ def main():
         else:
             if not args.json:
                 print("🔄 Abrufen des aktuellen Cloud-Cache-Zustands (batterieschonend)...")
-            vm.update_all_vehicles_with_cached_state()
+            for attempt in range(1, 4):
+                try:
+                    vm.update_all_vehicles_with_cached_state()
+                    break
+                except Exception as e:
+                    err_str = str(e).lower()
+                    if attempt < 3 and ("timeout" in err_str or "connection" in err_str):
+                        if not args.json:
+                            print(f"⚠️ Timeout beim Datenabruf (Versuch {attempt}/3). Warte 3s...")
+                        time.sleep(3)
+                    else:
+                        raise
 
         save_cached_token(vm.token)
 

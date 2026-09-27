@@ -23,7 +23,13 @@ if hasattr(sys.stderr, 'reconfigure'):
 import json
 import argparse
 import pickle
+import time
 from hyundai_kia_connect_api import VehicleManager, ClimateRequestOptions
+from hyundai_kia_connect_api.ApiImpl import ApiImplSession
+
+# Increase connection timeout from default 10s to 30s to prevent connect timeouts on slow routes / VPN
+ApiImplSession.HTTP_CONNECT_TIMEOUT = 30
+ApiImplSession.HTTP_READ_TIMEOUT = 60
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TOKEN_CACHE_FILE = os.path.join(SCRIPT_DIR, "token.cache")
@@ -97,8 +103,19 @@ def main():
             token=cached_token,
             language="de"
         )
-        vm.check_and_refresh_token()
-        save_cached_token(vm.token)
+        for attempt in range(1, 4):
+            try:
+                vm.check_and_refresh_token()
+                save_cached_token(vm.token)
+                break
+            except Exception as e:
+                err_str = str(e).lower()
+                if attempt < 3 and ("timeout" in err_str or "connection" in err_str or "reset" in err_str):
+                    if not args.json:
+                        print(f"⚠️ Verbindungstimeout zu Kia Connect (Versuch {attempt}/3). Warte 3s...")
+                    time.sleep(3)
+                else:
+                    raise
 
         if not vm.vehicles:
             raise RuntimeError("Keine Fahrzeuge im Kia-Account gefunden.")
