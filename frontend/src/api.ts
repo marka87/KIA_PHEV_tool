@@ -151,15 +151,12 @@ export async function fetchTariffs(): Promise<Tariff[]> {
   return res.json();
 }
 
-/**
- * Creates a charging session. If offline, stores to IndexedDB for sync.
- */
-export async function createChargingSession(data: any): Promise<{ offline?: boolean }> {
+async function postWithOfflineQueue<T>(url: string, payload: T, label: string): Promise<{ offline: boolean }> {
   try {
-    const res = await fetch(`${API_BASE}/sessions/charging`, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Netzwerkfehler' }));
@@ -169,10 +166,10 @@ export async function createChargingSession(data: any): Promise<{ offline?: bool
   } catch (err: any) {
     if (!navigator.onLine || err.message.includes('Failed to fetch') || err.name === 'TypeError') {
       await queueOfflineAction({
-        endpoint: `${API_BASE}/sessions/charging`,
+        endpoint: url,
         method: 'POST',
-        payload: data,
-        label: `Ladevorgang (${data.kwh} kWh)`,
+        payload,
+        label,
       });
       return { offline: true };
     }
@@ -180,62 +177,28 @@ export async function createChargingSession(data: any): Promise<{ offline?: bool
   }
 }
 
-/**
- * Creates a fuel session. If offline, stores to IndexedDB for sync.
- */
-export async function createFuelSession(data: any): Promise<{ offline?: boolean }> {
-  try {
-    const res = await fetch(`${API_BASE}/sessions/fuel`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Netzwerkfehler' }));
-      throw new Error(err.error || 'Fehler beim Speichern');
-    }
-    return { offline: false };
-  } catch (err: any) {
-    if (!navigator.onLine || err.message.includes('Failed to fetch') || err.name === 'TypeError') {
-      await queueOfflineAction({
-        endpoint: `${API_BASE}/sessions/fuel`,
-        method: 'POST',
-        payload: data,
-        label: `Tankvorgang (${data.liter} L)`,
-      });
-      return { offline: true };
-    }
-    throw err;
-  }
+export function createChargingSession<T>(data: T): Promise<{ offline: boolean }> {
+  return postWithOfflineQueue(
+    `${API_BASE}/sessions/charging`,
+    data,
+    `Ladevorgang (${(data as { kwh?: unknown }).kwh} kWh)`,
+  );
 }
 
-/**
- * Creates a snapshot. If offline, stores to IndexedDB.
- */
-export async function createSnapshot(data: any): Promise<{ offline?: boolean }> {
-  try {
-    const res = await fetch(`${API_BASE}/snapshots`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Netzwerkfehler' }));
-      throw new Error(err.error || 'Fehler beim Speichern');
-    }
-    return { offline: false };
-  } catch (err: any) {
-    if (!navigator.onLine || err.message.includes('Failed to fetch') || err.name === 'TypeError') {
-      await queueOfflineAction({
-        endpoint: `${API_BASE}/snapshots`,
-        method: 'POST',
-        payload: data,
-        label: `Snapshot (${data.odometer_km} km)`,
-      });
-      return { offline: true };
-    }
-    throw err;
-  }
+export function createFuelSession<T>(data: T): Promise<{ offline: boolean }> {
+  return postWithOfflineQueue(
+    `${API_BASE}/sessions/fuel`,
+    data,
+    `Tankvorgang (${(data as { liter?: unknown }).liter} L)`,
+  );
+}
+
+export function createSnapshot<T>(data: T): Promise<{ offline: boolean }> {
+  return postWithOfflineQueue(
+    `${API_BASE}/snapshots`,
+    data,
+    `Snapshot (${(data as { odometer_km?: unknown }).odometer_km} km)`,
+  );
 }
 
 export async function deleteChargingSession(id: number): Promise<void> {
@@ -403,4 +366,3 @@ export async function dismissChargeSuggestion(id: number): Promise<{ success: bo
   }
   return res.json();
 }
-

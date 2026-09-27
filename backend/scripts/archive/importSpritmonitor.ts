@@ -1,3 +1,5 @@
+﻿// Einmalige historische Datenmigration, archiviert am 2026-09-27. Nur manuell mit ts-node ausführbar, kein Teil des laufenden Betriebs.
+
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -88,7 +90,7 @@ for (const entry of entries) {
   const iso = toIso(entry.datum, entry.time);
   if (entry.type === 'EV') {
     const unitPrice = Math.round((entry.eur / entry.menge + 1e-9) * 1000) / 1000;
-    const quelle = unitPrice <= 0.25 ? 'zuhause' : 'öffentlich';
+    const quelle = unitPrice <= 0.25 ? 'zuhause' : 'Ã¶ffentlich';
     insertCharging.run(
       1,
       iso,
@@ -98,7 +100,7 @@ for (const entry of entries) {
       quelle,
       entry.odometer,
       entry.distanz,
-      quelle === 'zuhause' ? 'Zuhause' : 'Öffentliche Ladesäule',
+      quelle === 'zuhause' ? 'Zuhause' : 'Ã–ffentliche LadesÃ¤ule',
       'Spritmonitor Import'
     );
     countEv++;
@@ -120,4 +122,5 @@ for (const entry of entries) {
   }
 }
 
-console.log(`✅ Erfolgreich importiert: ${countEv} Ladevorgänge und ${countFuel} Tankvorgänge (Gesamt: ${entries.length}).`);
+console.log(`âœ… Erfolgreich importiert: ${countEv} LadevorgÃ¤nge und ${countFuel} TankvorgÃ¤nge (Gesamt: ${entries.length}).`);
+

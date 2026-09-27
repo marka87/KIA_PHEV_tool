@@ -5,30 +5,6 @@ import { runKiaSync, KiaSyncResult } from './kia_sync_service.js';
 
 let scheduledTask: ScheduledTask | null = null;
 
-export type SyncSuccessCallback = (syncData: any) => Promise<void> | void;
-const syncSuccessListeners: SyncSuccessCallback[] = [];
-
-/**
- * Register a listener to be called whenever a Kia sync completes successfully.
- * Useful for automated charge suggestion detection or data analytics.
- */
-export function registerSyncSuccessListener(listener: SyncSuccessCallback): void {
-  syncSuccessListeners.push(listener);
-}
-
-/**
- * Dispatches sync success to all registered listeners.
- */
-export async function notifySyncSuccess(syncData: any): Promise<void> {
-  for (const listener of syncSuccessListeners) {
-    try {
-      await listener(syncData);
-    } catch (e: any) {
-      logger.error('[Scheduler] Fehler in SyncSuccess-Listener:', e.message);
-    }
-  }
-}
-
 /**
  * Executes the scheduled sync (cache query, no force refresh, quelle = 'auto_sync').
  * Protected against exceptions so the backend process never crashes.
@@ -40,10 +16,9 @@ export async function executeScheduledSync(): Promise<KiaSyncResult> {
       force: false,
       quelle: 'auto_sync',
     });
-
     if (result.success) {
       logger.info('[Scheduler] Automatischer Kia-Sync erfolgreich abgeschlossen.');
-      await notifySyncSuccess(result.data);
+      logger.info('[Scheduler] Automatischer Kia-Sync erfolgreich abgeschlossen.');
     } else {
       logger.warn('[Scheduler] Automatischer Kia-Sync meldet Problem:', result.error);
     }

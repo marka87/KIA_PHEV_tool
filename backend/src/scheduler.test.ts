@@ -4,8 +4,6 @@ import cron from 'node-cron';
 import {
   initScheduler,
   getSchedulerStatus,
-  registerSyncSuccessListener,
-  notifySyncSuccess,
 } from './scheduler.js';
 import { AUTO_SYNC_CRON, AUTO_SYNC_ENABLED, AUTO_SYNC_TIMEZONE } from './config.js';
 
@@ -20,32 +18,4 @@ test('Scheduler: cron expression validates successfully for morning and evening'
   assert.ok(cron.validate(AUTO_SYNC_CRON));
   assert.ok(cron.validate('0 7 * * *'));
   assert.ok(cron.validate('0 20 * * *'));
-});
-
-test('Scheduler: sync success listeners receive event data', async () => {
-  let receivedData: any = null;
-  registerSyncSuccessListener((data) => {
-    receivedData = data;
-  });
-
-  const mockSnapshot = {
-    odometer_km: 41380,
-    soc_percent: 65,
-    zeitpunkt: new Date().toISOString(),
-    quelle: 'auto_sync',
-  };
-
-  await notifySyncSuccess(mockSnapshot);
-  assert.deepEqual(receivedData, mockSnapshot);
-});
-
-test('Scheduler: handles callback error without throwing', async () => {
-  registerSyncSuccessListener(() => {
-    throw new Error('Listener test error');
-  });
-
-  // notifySyncSuccess must catch listener errors without bubbling
-  await assert.doesNotReject(async () => {
-    await notifySyncSuccess({ test: true });
-  });
 });

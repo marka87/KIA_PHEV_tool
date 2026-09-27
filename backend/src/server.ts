@@ -1,5 +1,4 @@
 import express, { Request, Response, NextFunction } from 'express';
-import cors from 'cors';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +20,6 @@ import {
   initScheduler,
   executeScheduledSync,
   getSchedulerStatus,
-  notifySyncSuccess,
 } from './scheduler.js';
 import {
   checkAndCreateChargeSuggestion,
@@ -54,7 +52,6 @@ setInterval(() => {
 }, 24 * 60 * 60 * 1000);
 
 const app = express();
-app.use(cors());
 app.use(express.json());
 app.use(logger.requestMiddleware);
 app.use(basicAuthMiddleware);
@@ -728,7 +725,6 @@ app.post('/api/kia/sync', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: result.error || 'Kia Connect Synchronisation fehlgeschlagen' });
   }
 
-  await notifySyncSuccess(result.data);
   res.json(result.data);
 }));
 
