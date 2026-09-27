@@ -96,6 +96,8 @@ export function App() {
   // Simulator state in Dashboard
   const [simEvPrice, setSimEvPrice] = useState<number>(0.28);
   const [simFuelPrice, setSimFuelPrice] = useState<number>(1.65);
+  const [showSimulator, setShowSimulator] = useState(false);
+  const [showRemoteControls, setShowRemoteControls] = useState(false);
 
   // Kia Connect integration state
   const [kiaStatus, setKiaStatus] = useState<KiaStatus | null>(null);
@@ -659,10 +661,16 @@ export function App() {
             </div>
 
             {/* Interactive Live Break-Even Calculator */}
-            <div className="card" style={{ marginTop: '8px' }}>
-              <div className="card-title">
-                <TrendingDown size={18} /> Interaktiver Break-Even Rechner (Lohnt sich Laden an Säule X?)
-              </div>
+            <details
+              className="card dashboard-details"
+              style={{ marginTop: '8px' }}
+              open={showSimulator}
+              onToggle={(event) => setShowSimulator(event.currentTarget.open)}
+            >
+              <summary>
+                <TrendingDown size={18} /> Interaktiver Break-Even Rechner
+                <span className="details-hint">Lohnt sich Laden an Säule X?</span>
+              </summary>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
                 Verändere die Strom- und Spritpreise, um sofort zu sehen, ob sich das Laden an einer öffentlichen Station (z. B. VKW, EnBW, Ionity) gegenüber reinem Benzinbetrieb rechnet:
               </p>
@@ -735,7 +743,7 @@ export function App() {
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>je 100 km Fahrt</div>
                 </div>
               </div>
-            </div>
+            </details>
 
             {/* Latest Snapshot / Extended Vehicle Status & Monitor */}
             {stats?.latestSnapshot && (() => {
@@ -1134,18 +1142,22 @@ export function App() {
 
                   {/* Remote Control Bar */}
                   {kiaStatus?.configured && (
-                    <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border-color)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <details
+                      className="dashboard-details remote-details"
+                      style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border-color)' }}
+                      open={showRemoteControls}
+                      onToggle={(event) => setShowRemoteControls(event.currentTarget.open)}
+                    >
+                      <summary>
                           <Radio size={16} style={{ color: 'var(--accent)' }} />
-                          <span>Fahrzeug-Fernsteuerung (Remote-Befehle)</span>
-                        </div>
+                          Fahrzeug-Fernsteuerung
+                          <span className="details-hint">Remote-Befehle</span>
                         {isRemoteLoading && (
                           <span style={{ fontSize: '0.8rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <RefreshCw size={12} className="spin" /> Befehl '{remoteActionActive}' wird ausgeführt...
                           </span>
                         )}
-                      </div>
+                      </summary>
 
                       {/* Remote Buttons Grid */}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
@@ -1247,7 +1259,7 @@ export function App() {
                           </button>
                         )}
                       </div>
-                    </div>
+                    </details>
                   )}
                 </div>
               );

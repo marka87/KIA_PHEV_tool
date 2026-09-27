@@ -216,6 +216,55 @@ body {
   color: #38bdf8;
 }
 
+.dashboard-details > summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashboard-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dashboard-details > summary::after {
+  content: 'Öffnen';
+  margin-left: auto;
+  color: #38bdf8;
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.dashboard-details[open] > summary {
+  margin-bottom: 14px;
+}
+
+.dashboard-details[open] > summary::after {
+  content: 'Schließen';
+}
+
+.details-hint {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.remote-details > summary {
+  font-size: 0.88rem;
+  color: var(--text-main);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 /* Card Components */
 .card {
   background-color: var(--bg-card);
@@ -461,4 +510,3 @@ input:focus, select:focus, textarea:focus {
 .spin {
   animation: spin 1s linear infinite;
 }
-
