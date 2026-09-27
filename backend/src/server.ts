@@ -23,6 +23,12 @@ import {
   getSchedulerStatus,
   notifySyncSuccess,
 } from './scheduler.js';
+import {
+  checkAndCreateChargeSuggestion,
+  getPendingSuggestions,
+  confirmSuggestion,
+  dismissSuggestion,
+} from './charge_suggestions.js';
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -431,13 +437,44 @@ app.post('/api/snapshots', asyncHandler((req, res) => {
     quelle,
   );
 
-  res.status(201).json({ id: result.lastInsertRowid, message: 'Snapshot gespeichert' });
+  const newSnapshotId = Number(result.lastInsertRowid);
+
+  // Automatically check if this snapshot indicates an unlogged charging session
+  try {
+    checkAndCreateChargeSuggestion(newSnapshotId);
+  } catch (err: any) {
+    logger.error('[ChargeSuggestions] Fehler bei der Ladeerkennung:', err.message);
+  }
+
+  res.status(201).json({ id: newSnapshotId, message: 'Snapshot gespeichert' });
 }));
 
 app.delete('/api/snapshots/:id', (req, res) => {
   db.prepare('DELETE FROM vehicle_snapshots WHERE id = ?').run(Number(req.params.id));
   res.json({ message: 'Snapshot gelöscht' });
 });
+
+// ==========================================
+// CHARGE SUGGESTIONS API
+// ==========================================
+
+app.get('/api/charge-suggestions/pending', asyncHandler((req, res) => {
+  const vehicleId = req.query.vehicleId ? Number(req.query.vehicleId) : undefined;
+  const suggestions = getPendingSuggestions(vehicleId);
+  res.json(suggestions);
+}));
+
+app.post('/api/charge-suggestions/:id/confirm', asyncHandler((req, res) => {
+  const id = Number(req.params.id);
+  const result = confirmSuggestion(id, req.body);
+  res.json(result);
+}));
+
+app.post('/api/charge-suggestions/:id/dismiss', asyncHandler((req, res) => {
+  const id = Number(req.params.id);
+  const result = dismissSuggestion(id);
+  res.json(result);
+}));
 
 // ==========================================
 // TARIFFS API

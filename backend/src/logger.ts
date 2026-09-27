@@ -69,6 +69,14 @@ function formatLog(level: string, message: string, meta?: any): string {
 }
 
 export const logger = {
+  debug(message: string, meta?: any) {
+    if (process.env.DEBUG || process.env.NODE_ENV === 'development') {
+      const line = formatLog('DEBUG', message, meta);
+      console.log(line);
+      writeToFile(allLogFile, line);
+    }
+  },
+
   info(message: string, meta?: any) {
     const line = formatLog('INFO', message, meta);
     console.log(line);

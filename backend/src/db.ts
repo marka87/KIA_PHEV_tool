@@ -101,10 +101,27 @@ export function initDatabase() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS pending_charge_suggestions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vehicle_id INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+      from_snapshot_id INTEGER REFERENCES vehicle_snapshots(id) ON DELETE SET NULL,
+      to_snapshot_id INTEGER REFERENCES vehicle_snapshots(id) ON DELETE SET NULL,
+      from_zeitpunkt TEXT NOT NULL,
+      to_zeitpunkt TEXT NOT NULL,
+      from_soc_percent REAL NOT NULL,
+      to_soc_percent REAL NOT NULL,
+      soc_diff_percent REAL NOT NULL,
+      estimated_kwh REAL NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      charging_session_id INTEGER REFERENCES charging_sessions(id) ON DELETE SET NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_charging_sessions_vehicle ON charging_sessions(vehicle_id, zeitpunkt);
     CREATE INDEX IF NOT EXISTS idx_fuel_sessions_vehicle ON fuel_sessions(vehicle_id, zeitpunkt);
     CREATE INDEX IF NOT EXISTS idx_snapshots_vehicle ON vehicle_snapshots(vehicle_id, zeitpunkt);
     CREATE INDEX IF NOT EXISTS idx_tariffs_lookup ON tariffs(quelle, gueltig_ab);
+    CREATE INDEX IF NOT EXISTS idx_charge_suggestions_status ON pending_charge_suggestions(status, vehicle_id);
   `);
 
   // Safe migration for existing databases: check and add missing columns
