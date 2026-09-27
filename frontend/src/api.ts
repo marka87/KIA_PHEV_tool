@@ -347,3 +347,60 @@ export async function sendKiaRemoteControl(payload: KiaControlPayload): Promise<
   return data;
 }
 
+export interface ChargeSuggestion {
+  id: number;
+  vehicle_id: number;
+  from_snapshot_id: number | null;
+  to_snapshot_id: number | null;
+  from_zeitpunkt: string;
+  to_zeitpunkt: string;
+  from_soc_percent: number;
+  to_soc_percent: number;
+  soc_diff_percent: number;
+  estimated_kwh: number;
+  status: 'pending' | 'confirmed' | 'dismissed';
+  charging_session_id: number | null;
+  created_at: string;
+}
+
+export async function fetchPendingChargeSuggestions(vehicleId: number = 1): Promise<ChargeSuggestion[]> {
+  const res = await fetch(`${API_BASE}/charge-suggestions/pending?vehicleId=${vehicleId}`);
+  if (!res.ok) throw new Error('Fehler beim Abrufen offener Ladevorschläge');
+  return res.json();
+}
+
+export async function confirmChargeSuggestion(
+  id: number,
+  data: {
+    preis_pro_kwh?: number | string;
+    quelle?: string;
+    kwh?: number | string;
+    zeitpunkt?: string;
+    odometer_km?: number | string;
+    standort?: string;
+    bemerkung?: string;
+  }
+): Promise<{ success: boolean; charging_session: any; suggestion_id: number }> {
+  const res = await fetch(`${API_BASE}/charge-suggestions/${id}/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Fehler beim Bestätigen des Ladevorschlags' }));
+    throw new Error(err.error || 'Fehler beim Bestätigen des Ladevorschlags');
+  }
+  return res.json();
+}
+
+export async function dismissChargeSuggestion(id: number): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${API_BASE}/charge-suggestions/${id}/dismiss`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Fehler beim Verwerfen des Ladevorschlags' }));
+    throw new Error(err.error || 'Fehler beim Verwerfen des Ladevorschlags');
+  }
+  return res.json();
+}
+

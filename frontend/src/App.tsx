@@ -26,6 +26,8 @@ import {
   ChevronUp,
   Power,
   Radio,
+  X,
+  BatteryCharging,
 } from 'lucide-react';
 import {
   fetchDashboardStats,
@@ -46,6 +48,9 @@ import {
   saveKiaConfig,
   syncKiaConnect,
   sendKiaRemoteControl,
+  fetchPendingChargeSuggestions,
+  confirmChargeSuggestion,
+  dismissChargeSuggestion,
 } from './api';
 import type {
   DashboardStats,
@@ -54,6 +59,7 @@ import type {
   VehicleSnapshot,
   Tariff,
   KiaStatus,
+  ChargeSuggestion,
 } from './api';
 import {
   getPendingActions,
@@ -70,7 +76,7 @@ export function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
   const [syncing, setSyncing] = useState(false);
-  const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'warn' } | null>(null);
+  const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'warn' | 'info' } | null>(null);
 
   // History state
   const [chargingList, setChargingList] = useState<ChargingSession[]>([]);
@@ -83,9 +89,18 @@ export function App() {
   const [chargeKwh, setChargeKwh] = useState('');
   const [chargeOdo, setChargeOdo] = useState('');
   const [chargeEvKm, setChargeEvKm] = useState('');
+  const [chargeQuelle, setChargeQuelle] = useState('zuhause');
+  const [chargePreis, setChargePreis] = useState('');
+  const [chargeZeitpunkt, setChargeZeitpunkt] = useState('');
+  const [chargeBemerkung, setChargeBemerkung] = useState('');
   const [chargeCalcOpen, setChargeCalcOpen] = useState(false);
   const [calcStartPct, setCalcStartPct] = useState(20);
   const [calcEndPct, setCalcEndPct] = useState(100);
+
+  // Unlogged charge suggestions
+  const [chargeSuggestions, setChargeSuggestions] = useState<ChargeSuggestion[]>([]);
+  const [activeSuggestionId, setActiveSuggestionId] = useState<number | null>(null);
+  const [dismissingSuggestionId, setDismissingSuggestionId] = useState<number | null>(null);
 
   const [fuelOdo, setFuelOdo] = useState('');
   const [fuelKm, setFuelKm] = useState('');
@@ -111,7 +126,7 @@ export function App() {
   const [remoteActionActive, setRemoteActionActive] = useState<string | null>(null);
 
   // Helper toast notification
-  const showToast = (text: string, type: 'success' | 'warn' = 'success') => {
+  const showToast = (text: string, type: 'success' | 'warn' | 'info' = 'success') => {
     setToastMsg({ text, type });
     setTimeout(() => setToastMsg(null), 4000);
   };
@@ -159,9 +174,21 @@ export function App() {
     }
   };
 
+  const loadChargeSuggestions = async () => {
+    try {
+      const list = await fetchPendingChargeSuggestions(1);
+      setChargeSuggestions(list);
+    } catch (err) {
+      console.warn('Ladevorschläge konnten nicht geladen werden:', err);
+    }
+  };
+
   const loadDashboard = async () => {
     try {
-      const data = await fetchDashboardStats(1);
+      const [data] = await Promise.all([
+        fetchDashboardStats(1),
+        loadChargeSuggestions(),
+      ]);
       setStats(data);
       saveCachedDashboard(data);
       setSimEvPrice(data.breakEven.electricityPricePerKwh);
@@ -235,6 +262,40 @@ export function App() {
     }
   };
 
+  const handleAcceptSuggestion = (sug: ChargeSuggestion) => {
+    setActiveSuggestionId(sug.id);
+    setChargeKwh(sug.estimated_kwh.toString().replace('.', ','));
+    try {
+      const d = new Date(sug.to_zeitpunkt);
+      const tzOffset = d.getTimezoneOffset() * 60000;
+      const localIso = new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+      setChargeZeitpunkt(localIso);
+    } catch {
+      setChargeZeitpunkt(new Date().toISOString().slice(0, 16));
+    }
+    setChargeQuelle('zuhause');
+    setChargePreis('');
+    setChargeBemerkung(`Automatisch erkannt aus Kia-Sync (+${sug.soc_diff_percent}% SoC)`);
+    setActiveTab('charge');
+    showToast('Ladedaten übernommen! Bitte wähle Ladequelle und Tarif/Preis.', 'info');
+  };
+
+  const handleDismissSuggestion = async (id: number) => {
+    setDismissingSuggestionId(id);
+    try {
+      await dismissChargeSuggestion(id);
+      setChargeSuggestions((prev) => prev.filter((s) => s.id !== id));
+      if (activeSuggestionId === id) {
+        setActiveSuggestionId(null);
+      }
+      showToast('Ladevorschlag verworfen.');
+    } catch (err: any) {
+      showToast('Fehler beim Verwerfen: ' + err.message, 'warn');
+    } finally {
+      setDismissingSuggestionId(null);
+    }
+  };
+
   // Forms submit handlers
   const handleSaveCharge = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -243,30 +304,41 @@ export function App() {
 
     const payload = {
       vehicle_id: 1,
-      zeitpunkt: formData.get('zeitpunkt') || new Date().toISOString(),
-      kwh: formData.get('kwh'),
-      quelle: formData.get('quelle'),
-      preis_pro_kwh: formData.get('preis_pro_kwh') || undefined,
-      gesamtkosten: formData.get('gesamtkosten') || undefined,
-      ev_km: formData.get('ev_km') || undefined,
-      odometer_km: formData.get('odometer_km') || undefined,
-      standort: formData.get('standort') || '',
-      bemerkung: formData.get('bemerkung') || '',
+      zeitpunkt: (formData.get('zeitpunkt') as string) || chargeZeitpunkt || new Date().toISOString(),
+      kwh: (formData.get('kwh') as string) || chargeKwh,
+      quelle: (formData.get('quelle') as string) || chargeQuelle || 'zuhause',
+      preis_pro_kwh: (formData.get('preis_pro_kwh') as string) || chargePreis || undefined,
+      gesamtkosten: (formData.get('gesamtkosten') as string) || undefined,
+      ev_km: (formData.get('ev_km') as string) || chargeEvKm || undefined,
+      odometer_km: (formData.get('odometer_km') as string) || chargeOdo || undefined,
+      standort: (formData.get('standort') as string) || '',
+      bemerkung: (formData.get('bemerkung') as string) || chargeBemerkung || '',
     };
 
     try {
-      const res = await createChargingSession(payload);
-      if (res.offline) {
-        showToast('Ladevorgang offline gespeichert! Synchronisiert automatisch bei Verbindung.', 'warn');
+      if (activeSuggestionId) {
+        await confirmChargeSuggestion(activeSuggestionId, payload);
+        showToast('Ladevorgang bestätigt und gespeichert!');
+        setChargeSuggestions((prev) => prev.filter((s) => s.id !== activeSuggestionId));
+        setActiveSuggestionId(null);
       } else {
-        showToast('Ladevorgang erfolgreich gespeichert!');
+        const res = await createChargingSession(payload);
+        if (res.offline) {
+          showToast('Ladevorgang offline gespeichert! Synchronisiert automatisch bei Verbindung.', 'warn');
+        } else {
+          showToast('Ladevorgang erfolgreich gespeichert!');
+        }
       }
       form.reset();
       setChargeKwh('');
       setChargeOdo('');
       setChargeEvKm('');
+      setChargePreis('');
+      setChargeZeitpunkt('');
+      setChargeBemerkung('');
       await checkPendingActions();
       await loadDashboard();
+      await loadChargeSuggestions();
       setActiveTab('dashboard');
     } catch (err: any) {
       alert(err.message);
@@ -556,6 +628,90 @@ export function App() {
                 {isKiaSyncing ? 'Kia lädt...' : 'Kia Sync'}
               </button>
             </div>
+
+            {/* Unlogged Charge Suggestions Banner */}
+            {chargeSuggestions.length > 0 && (
+              <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {chargeSuggestions.map((sug) => (
+                  <div
+                    key={sug.id}
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.16) 0%, rgba(56, 189, 248, 0.12) 100%)',
+                      border: '1.5px solid rgba(16, 185, 129, 0.45)',
+                      borderRadius: '12px',
+                      padding: '16px 18px',
+                      boxShadow: '0 4px 14px rgba(0, 0, 0, 0.15)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: '1 1 320px' }}>
+                        <div
+                          style={{
+                            width: '42px',
+                            height: '42px',
+                            borderRadius: '10px',
+                            background: 'rgba(16, 185, 129, 0.25)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#10b981',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <BatteryCharging size={24} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '1.02rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                            Akku ist von {sug.from_soc_percent}% auf {sug.to_soc_percent}% gestiegen (+{sug.soc_diff_percent}%) – hast du geladen?
+                          </div>
+                          <div style={{ fontSize: '0.84rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                            Zeitraum: {formatDate(sug.from_zeitpunkt)} bis {formatDate(sug.to_zeitpunkt)} • Geschätzte Lademenge: <strong style={{ color: '#10b981' }}>~{sug.estimated_kwh.toString().replace('.', ',')} kWh</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => handleDismissSuggestion(sug.id)}
+                          disabled={dismissingSuggestionId === sug.id}
+                          style={{
+                            padding: '7px 12px',
+                            fontSize: '0.82rem',
+                            border: '1px solid rgba(239, 68, 68, 0.35)',
+                            color: '#ef4444',
+                            background: 'rgba(239, 68, 68, 0.08)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                          title="Vorschlag verwerfen"
+                        >
+                          <X size={14} /> Nicht geladen
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={() => handleAcceptSuggestion(sug)}
+                          style={{
+                            padding: '7px 14px',
+                            fontSize: '0.84rem',
+                            backgroundColor: 'var(--ev-color)',
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                          }}
+                        >
+                          <Zap size={15} /> Ladung erfassen
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Break-Even Highlight Banner */}
             {stats && (
@@ -1265,6 +1421,47 @@ export function App() {
             </div>
 
             <form onSubmit={handleSaveCharge}>
+              {activeSuggestionId && (
+                <div
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: '8px',
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    border: '1.5px solid rgba(16, 185, 129, 0.4)',
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '10px',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.86rem', color: '#10b981', fontWeight: 600 }}>
+                    <Zap size={17} /> Daten aus ungeloggtem Ladevorgang übernommen
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveSuggestionId(null);
+                      setChargeKwh('');
+                      setChargeZeitpunkt('');
+                      setChargeBemerkung('');
+                      setChargePreis('');
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      fontSize: '0.78rem',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Zurücksetzen
+                  </button>
+                </div>
+              )}
+
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                   <label style={{ margin: 0 }}>Geladene Menge in kWh *</label>
@@ -1377,7 +1574,11 @@ export function App() {
               <div className="grid-2">
                 <div className="form-group">
                   <label>Ladequelle / Ort *</label>
-                  <select name="quelle" defaultValue="zuhause">
+                  <select
+                    name="quelle"
+                    value={chargeQuelle}
+                    onChange={(e) => setChargeQuelle(e.target.value)}
+                  >
                     <option value="zuhause">Zuhause (Haushaltsstrom)</option>
                     <option value="vkw">VKW / vlotte Ladekarte</option>
                     <option value="enbw">EnBW mobility+</option>
@@ -1392,6 +1593,8 @@ export function App() {
                     name="preis_pro_kwh"
                     placeholder="leer = Tarif der Quelle"
                     inputMode="decimal"
+                    value={chargePreis}
+                    onChange={(e) => setChargePreis(e.target.value)}
                   />
                   <div className="input-helper">Wenn leer, greift der hinterlegte Tarif</div>
                 </div>
@@ -1461,20 +1664,41 @@ export function App() {
                 <input
                   type="datetime-local"
                   name="zeitpunkt"
-                  defaultValue={new Date().toISOString().slice(0, 16)}
+                  value={chargeZeitpunkt || undefined}
+                  defaultValue={chargeZeitpunkt ? undefined : new Date().toISOString().slice(0, 16)}
+                  onChange={(e) => setChargeZeitpunkt(e.target.value)}
                 />
               </div>
 
-              <div className="form-group">
-                <label>Bemerkung / Standort</label>
-                <input type="text" name="standort" placeholder="z.B. Wallbox Garage oder Filiale Dornbirn" />
+              <div className="grid-2">
+                <div className="form-group">
+                  <label>Standort (Optional)</label>
+                  <input type="text" name="standort" placeholder="z.B. Wallbox Garage oder Filiale Dornbirn" />
+                </div>
+                <div className="form-group">
+                  <label>Bemerkung (Optional)</label>
+                  <input
+                    type="text"
+                    name="bemerkung"
+                    placeholder="z.B. Notiz oder Herkunft"
+                    value={chargeBemerkung}
+                    onChange={(e) => setChargeBemerkung(e.target.value)}
+                  />
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
                 <button type="submit" className="btn btn-primary" style={{ backgroundColor: 'var(--ev-color)' }}>
                   <CheckCircle2 size={18} /> Ladevorgang speichern
                 </button>
-                <button type="button" className="btn btn-secondary" onClick={() => setActiveTab('dashboard')}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setActiveSuggestionId(null);
+                    setActiveTab('dashboard');
+                  }}
+                >
                   Abbrechen
                 </button>
               </div>

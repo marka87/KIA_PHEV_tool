@@ -40,6 +40,15 @@ function createTestDatabase() {
       bemerkung TEXT
     );
 
+    CREATE TABLE tariffs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      quelle TEXT NOT NULL,
+      bezeichnung TEXT NOT NULL,
+      gueltig_ab TEXT NOT NULL,
+      preis_pro_kwh REAL NOT NULL,
+      grundgebuehr_monat REAL NOT NULL DEFAULT 0
+    );
+
     CREATE TABLE pending_charge_suggestions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       vehicle_id INTEGER NOT NULL,
@@ -57,6 +66,7 @@ function createTestDatabase() {
     );
 
     INSERT INTO vehicles (id, name, batterie_kapazitaet_kwh) VALUES (1, 'Kia Ceed SW PHEV', 8.9);
+    INSERT INTO tariffs (quelle, bezeichnung, gueltig_ab, preis_pro_kwh) VALUES ('zuhause', 'Haushalt', '2024-01-01', 0.28);
   `);
   return memDb;
 }

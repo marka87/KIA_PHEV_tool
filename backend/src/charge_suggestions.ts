@@ -1,4 +1,4 @@
-import { db } from './db.js';
+import { db, getTariffForSource } from './db.js';
 import { logger } from './logger.js';
 import { parseLocaleNumber } from './calculations.js';
 
@@ -21,8 +21,8 @@ export interface ChargeSuggestion {
 }
 
 export interface ConfirmSuggestionInput {
-  preis_pro_kwh: number | string;
-  quelle: string;
+  preis_pro_kwh?: number | string;
+  quelle?: string;
   kwh?: number | string;
   zeitpunkt?: string;
   odometer_km?: number | string;
@@ -184,21 +184,23 @@ export function confirmSuggestion(
     throw new Error(`Ladevorschlag wurde bereits bearbeitet (Status: ${suggestion.status})`);
   }
 
-  if (input.preis_pro_kwh === undefined || input.preis_pro_kwh === null || input.preis_pro_kwh === '') {
-    throw new Error('Preis pro kWh ist erforderlich');
-  }
+  const quelle = input.quelle || 'zuhause';
+  const zeitpunkt = input.zeitpunkt || suggestion.to_zeitpunkt;
 
-  if (!input.quelle) {
-    throw new Error('Quelle (z.B. zuhause, vkw, enbw) ist erforderlich');
+  let preisProKwh: number;
+  if (input.preis_pro_kwh !== undefined && input.preis_pro_kwh !== null && input.preis_pro_kwh !== '') {
+    preisProKwh = parseLocaleNumber(input.preis_pro_kwh);
+  } else {
+    // If not supplied, fallback to tariff for source or default 0.28
+    const tariffPrice = getTariffForSource(quelle, zeitpunkt);
+    preisProKwh = tariffPrice !== null ? tariffPrice : 0.28;
   }
 
   const kwh = input.kwh !== undefined && input.kwh !== null && input.kwh !== ''
     ? parseLocaleNumber(input.kwh)
     : suggestion.estimated_kwh;
 
-  const preisProKwh = parseLocaleNumber(input.preis_pro_kwh);
   const gesamtkosten = Math.round(kwh * preisProKwh * 100) / 100;
-  const zeitpunkt = input.zeitpunkt || suggestion.to_zeitpunkt;
 
   // Retrieve odometer from to_snapshot if not explicitly supplied
   let odometerKm = input.odometer_km !== undefined && input.odometer_km !== null && input.odometer_km !== ''
