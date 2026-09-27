@@ -24,10 +24,8 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
-  Snowflake,
   Power,
   Radio,
-  Sliders,
 } from 'lucide-react';
 import {
   fetchDashboardStats,
@@ -111,10 +109,6 @@ export function App() {
   // Kia Remote Controls state
   const [isRemoteLoading, setIsRemoteLoading] = useState(false);
   const [remoteActionActive, setRemoteActionActive] = useState<string | null>(null);
-  const [climateTemp, setClimateTemp] = useState(21.0);
-  const [climateDefrost, setClimateDefrost] = useState(false);
-  const [climateSteering, setClimateSteering] = useState(false);
-  const [showClimateControls, setShowClimateControls] = useState(false);
 
   // Helper toast notification
   const showToast = (text: string, type: 'success' | 'warn' = 'success') => {
@@ -1190,29 +1184,6 @@ export function App() {
                           <Unlock size={15} /> Entriegeln
                         </button>
 
-                        {/* Climate Toggle Button */}
-                        <button
-                          type="button"
-                          disabled={isRemoteLoading}
-                          onClick={() => setShowClimateControls(!showClimateControls)}
-                          className="btn-secondary"
-                          style={{
-                            padding: '8px 10px',
-                            fontSize: '0.82rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '6px',
-                            fontWeight: 600,
-                            background: climate.is_on ? 'rgba(56, 189, 248, 0.2)' : 'rgba(56, 189, 248, 0.08)',
-                            borderColor: 'rgba(56, 189, 248, 0.3)',
-                            color: '#38bdf8',
-                          }}
-                          title="Standklimatisierung einstellen"
-                        >
-                          <Snowflake size={15} /> {climate.is_on ? 'Klima aktiv' : 'Standklima'} {showClimateControls ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                        </button>
-
                         {/* Charging Start / Stop */}
                         {snap.is_charging ? (
                           <button
@@ -1261,114 +1232,6 @@ export function App() {
                           </button>
                         )}
                       </div>
-
-                      {/* Expandable Climate Control Drawer */}
-                      {showClimateControls && (
-                        <div
-                          style={{
-                            marginTop: '10px',
-                            padding: '12px 14px',
-                            backgroundColor: 'var(--bg-input)',
-                            borderRadius: '8px',
-                            border: '1px solid var(--border-color)',
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
-                            <div style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <Sliders size={15} style={{ color: '#38bdf8' }} />
-                              <span>Standklimatisierung konfigurieren</span>
-                            </div>
-
-                            {climate.is_on && (
-                              <button
-                                type="button"
-                                disabled={isRemoteLoading}
-                                onClick={() => handleRemoteCommand({ action: 'stop_climate' })}
-                                className="btn-secondary"
-                                style={{ padding: '3px 8px', fontSize: '0.75rem', color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}
-                              >
-                                Klima sofort ausschalten
-                              </button>
-                            )}
-                          </div>
-
-                          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '14px', marginBottom: '12px' }}>
-                            {/* Temperature Stepper */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Wunsch-Temperatur:</span>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <button
-                                  type="button"
-                                  onClick={() => setClimateTemp(prev => Math.max(17.0, Math.round((prev - 0.5) * 10) / 10))}
-                                  className="btn-secondary"
-                                  style={{ padding: '2px 8px', fontSize: '0.85rem', fontWeight: 700 }}
-                                >
-                                  -
-                                </button>
-                                <span style={{ fontSize: '1rem', fontWeight: 700, minWidth: '48px', textAlign: 'center', color: '#38bdf8' }}>
-                                  {climateTemp.toFixed(1)}°C
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setClimateTemp(prev => Math.min(27.0, Math.round((prev + 0.5) * 10) / 10))}
-                                  className="btn-secondary"
-                                  style={{ padding: '2px 8px', fontSize: '0.85rem', fontWeight: 700 }}
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Defrost Checkbox */}
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', cursor: 'pointer', margin: 0 }}>
-                              <input
-                                type="checkbox"
-                                checked={climateDefrost}
-                                onChange={(e) => setClimateDefrost(e.target.checked)}
-                                style={{ cursor: 'pointer' }}
-                              />
-                              <span>Scheiben enteisen (Defrost)</span>
-                            </label>
-
-                            {/* Steering Wheel Checkbox */}
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', cursor: 'pointer', margin: 0 }}>
-                              <input
-                                type="checkbox"
-                                checked={climateSteering}
-                                onChange={(e) => setClimateSteering(e.target.checked)}
-                                style={{ cursor: 'pointer' }}
-                              />
-                              <span>Lenkradheizung</span>
-                            </label>
-                          </div>
-
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                            <button
-                              type="button"
-                              disabled={isRemoteLoading}
-                              onClick={() =>
-                                handleRemoteCommand({
-                                  action: 'start_climate',
-                                  temp: climateTemp,
-                                  defrost: climateDefrost,
-                                  steering_wheel: climateSteering,
-                                  duration: 15,
-                                })
-                              }
-                              className="btn-primary"
-                              style={{
-                                padding: '6px 14px',
-                                fontSize: '0.82rem',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                              }}
-                            >
-                              <Power size={14} /> Vorklimatisierung jetzt starten (15 Min.)
-                            </button>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
