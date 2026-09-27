@@ -665,12 +665,14 @@ app.post('/api/kia/sync', asyncHandler(async (req, res) => {
 
   try {
     const { stdout, stderr } = await execFileAsync('python', args, {
-      timeout: 45000,
+      timeout: 90000,
       env: {
         ...process.env,
         KIA_USERNAME: username,
         KIA_PASSWORD: decryptedPassword,
         KIA_PIN: decryptedPin,
+        BASIC_AUTH_USER: process.env.BASIC_AUTH_USER || '',
+        BASIC_AUTH_PASSWORD: process.env.BASIC_AUTH_PASSWORD || '',
       },
     });
     const output = stdout.trim();
@@ -690,14 +692,17 @@ app.post('/api/kia/sync', asyncHandler(async (req, res) => {
     logger.info(`[KiaSync] Synchronisation erfolgreich: Tacho=${data.snapshot?.odometer_km} km, SoC=${data.snapshot?.soc_percent}%`);
     res.json(data);
   } catch (err: any) {
-    logger.error('[KiaSync] Ausführungsfehler:', err.message || err.stderr || '');
+    const errDetail = err.stderr?.trim() || err.stdout?.trim() || err.message;
+    logger.error('[KiaSync] Ausführungsfehler:', errDetail);
     if (err.stdout) {
       try {
         const data = JSON.parse(err.stdout.trim());
-        return res.status(400).json({ error: data.error });
+        if (data.error) {
+          return res.status(400).json({ error: data.error });
+        }
       } catch {}
     }
-    res.status(500).json({ error: 'Fehler beim Ausführen von sync_kia.py: ' + (err.message || err.stderr || '') });
+    res.status(500).json({ error: 'Fehler beim Ausführen von sync_kia.py: ' + errDetail });
   }
 }));
 

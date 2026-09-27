@@ -15,6 +15,17 @@ export function basicAuthMiddleware(req: Request, res: Response, next: NextFunct
     return next();
   }
 
+  // Allow internal loopback requests (e.g. sync_kia.py running on the same machine)
+  const remoteIp = req.socket.remoteAddress || req.ip || '';
+  if (
+    remoteIp === '127.0.0.1' ||
+    remoteIp === '::1' ||
+    remoteIp === '::ffff:127.0.0.1' ||
+    remoteIp.endsWith('127.0.0.1')
+  ) {
+    return next();
+  }
+
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('Basic ')) {
     res.setHeader('WWW-Authenticate', 'Basic realm="PHEV Tracker", charset="UTF-8"');

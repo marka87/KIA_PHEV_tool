@@ -158,7 +158,12 @@ def main():
         post_result = None
         if not args.dry_run:
             api_endpoint = f"{server_url}/api/snapshots"
-            resp = requests.post(api_endpoint, json=snapshot_payload, timeout=10)
+            auth = None
+            b_user = os.environ.get("BASIC_AUTH_USER", "admin")
+            b_pass = os.environ.get("BASIC_AUTH_PASSWORD", "")
+            if b_pass:
+                auth = (b_user, b_pass)
+            resp = requests.post(api_endpoint, json=snapshot_payload, auth=auth, timeout=10)
             if resp.status_code >= 400:
                 raise RuntimeError(f"Server-Fehler {resp.status_code}: {resp.text}")
             post_result = resp.json()
