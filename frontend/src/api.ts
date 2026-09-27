@@ -48,6 +48,20 @@ export interface VehicleSnapshot {
   fuel_range_km: number | null;
   ev_odometer_km: number | null;
   soc_percent: number | null;
+  car_12v_percent?: number | null;
+  is_charging?: number | boolean | null;
+  is_plugged_in?: number | boolean | null;
+  is_locked?: number | boolean | null;
+  doors_open_json?: string | null;
+  windows_open_json?: string | null;
+  climate_status_json?: string | null;
+  charge_remaining_min?: number | null;
+  charge_port_open?: number | boolean | null;
+  location_lat?: number | null;
+  location_lon?: number | null;
+  tire_pressure_warning?: number | boolean | null;
+  washer_fluid_warning?: number | boolean | null;
+  smart_key_warning?: number | boolean | null;
   quelle: string;
 }
 

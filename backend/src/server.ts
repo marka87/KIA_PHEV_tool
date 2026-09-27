@@ -365,6 +365,20 @@ app.post('/api/snapshots', asyncHandler((req, res) => {
     fuel_range_km,
     ev_odometer_km,
     soc_percent,
+    car_12v_percent,
+    is_charging = 0,
+    is_plugged_in = 0,
+    is_locked,
+    doors_open_json,
+    windows_open_json,
+    climate_status_json,
+    charge_remaining_min,
+    charge_port_open = 0,
+    location_lat,
+    location_lon,
+    tire_pressure_warning = 0,
+    washer_fluid_warning = 0,
+    smart_key_warning = 0,
     quelle = 'manuell',
   } = req.body;
 
@@ -374,8 +388,11 @@ app.post('/api/snapshots', asyncHandler((req, res) => {
 
   const stmt = db.prepare(`
     INSERT INTO vehicle_snapshots (
-      vehicle_id, zeitpunkt, odometer_km, ev_range_km, fuel_range_km, ev_odometer_km, soc_percent, quelle
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      vehicle_id, zeitpunkt, odometer_km, ev_range_km, fuel_range_km, ev_odometer_km, soc_percent,
+      car_12v_percent, is_charging, is_plugged_in, is_locked, doors_open_json, windows_open_json,
+      climate_status_json, charge_remaining_min, charge_port_open, location_lat, location_lon,
+      tire_pressure_warning, washer_fluid_warning, smart_key_warning, quelle
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const result = stmt.run(
@@ -386,6 +403,20 @@ app.post('/api/snapshots', asyncHandler((req, res) => {
     fuel_range_km ? parseLocaleNumber(fuel_range_km) : null,
     ev_odometer_km ? parseLocaleNumber(ev_odometer_km) : null,
     soc_percent ? parseLocaleNumber(soc_percent) : null,
+    car_12v_percent !== undefined && car_12v_percent !== null ? parseLocaleNumber(car_12v_percent) : null,
+    is_charging ? 1 : 0,
+    is_plugged_in ? 1 : 0,
+    is_locked !== undefined && is_locked !== null ? (is_locked ? 1 : 0) : null,
+    doors_open_json || null,
+    windows_open_json || null,
+    climate_status_json || null,
+    charge_remaining_min !== undefined && charge_remaining_min !== null ? Number(charge_remaining_min) : null,
+    charge_port_open ? 1 : 0,
+    location_lat !== undefined && location_lat !== null ? Number(location_lat) : null,
+    location_lon !== undefined && location_lon !== null ? Number(location_lon) : null,
+    tire_pressure_warning ? 1 : 0,
+    washer_fluid_warning ? 1 : 0,
+    smart_key_warning ? 1 : 0,
     quelle,
   );
 

@@ -7,6 +7,19 @@ and saves it as a snapshot in the PHEV-Kosten-Tracker SQLite database.
 
 import sys
 import os
+
+# Ensure UTF-8 stdout/stderr on Windows
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+if hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 import json
 import argparse
 import pickle
@@ -142,6 +155,42 @@ def main():
         if (ev_range is None or ev_range <= 0) and battery_pct is not None and battery_pct > 0:
             ev_range = round((battery_pct / 100.0) * 50.0, 1)
 
+        # Extended telemetry
+        is_locked = getattr(vehicle, "is_locked", None)
+        doors = {
+            "front_left": bool(getattr(vehicle, "front_left_door_is_open", False)),
+            "front_right": bool(getattr(vehicle, "front_right_door_is_open", False)),
+            "back_left": bool(getattr(vehicle, "back_left_door_is_open", False)),
+            "back_right": bool(getattr(vehicle, "back_right_door_is_open", False)),
+            "trunk": bool(getattr(vehicle, "trunk_is_open", False)),
+            "hood": bool(getattr(vehicle, "hood_is_open", False)),
+        }
+        windows = {
+            "front_left": bool(getattr(vehicle, "front_left_window_is_open", False)),
+            "front_right": bool(getattr(vehicle, "front_right_window_is_open", False)),
+            "back_left": bool(getattr(vehicle, "back_left_window_is_open", False)),
+            "back_right": bool(getattr(vehicle, "back_right_window_is_open", False)),
+        }
+        climate = {
+            "is_on": bool(getattr(vehicle, "air_control_is_on", False)),
+            "target_temp": getattr(vehicle, "air_temperature", None),
+            "defrost": bool(getattr(vehicle, "defrost_is_on", False)),
+            "back_window_heater": bool(getattr(vehicle, "back_window_heater_is_on", False)),
+            "steering_wheel_heater": bool(getattr(vehicle, "steering_wheel_heater_is_on", False)),
+            "outside_temp": getattr(vehicle, "outside_temperature", None),
+        }
+        charge_port_open = bool(getattr(vehicle, "ev_charge_port_door_is_open", False))
+        charge_remaining_min = getattr(vehicle, "ev_estimated_current_charge_duration", None)
+        if charge_remaining_min is None and is_charging:
+            charge_remaining_min = getattr(vehicle, "ev_estimated_station_charge_duration", None)
+
+        loc_lat = getattr(vehicle, "location_latitude", None)
+        loc_lon = getattr(vehicle, "location_longitude", None)
+
+        tpms_warning = bool(getattr(vehicle, "tire_pressure_all_warning_is_on", False))
+        washer_fluid_warning = bool(getattr(vehicle, "washer_fluid_warning_is_on", False))
+        smart_key_warning = bool(getattr(vehicle, "smart_key_battery_warning_is_on", False))
+
         snapshot_payload = {
             "vehicle_id": vehicle_db_id,
             "zeitpunkt": last_updated.isoformat() if hasattr(last_updated, "isoformat") else str(last_updated),
@@ -149,6 +198,20 @@ def main():
             "ev_range_km": float(ev_range) if ev_range is not None else None,
             "fuel_range_km": float(fuel_range) if fuel_range is not None else None,
             "soc_percent": float(battery_pct) if battery_pct is not None else None,
+            "car_12v_percent": float(car_12v_pct) if car_12v_pct is not None else None,
+            "is_charging": 1 if is_charging else 0,
+            "is_plugged_in": 1 if is_plugged else 0,
+            "is_locked": 1 if is_locked is True else (0 if is_locked is False else None),
+            "doors_open_json": json.dumps(doors),
+            "windows_open_json": json.dumps(windows),
+            "climate_status_json": json.dumps(climate),
+            "charge_remaining_min": int(charge_remaining_min) if charge_remaining_min is not None else None,
+            "charge_port_open": 1 if charge_port_open else 0,
+            "location_lat": float(loc_lat) if loc_lat is not None else None,
+            "location_lon": float(loc_lon) if loc_lon is not None else None,
+            "tire_pressure_warning": 1 if tpms_warning else 0,
+            "washer_fluid_warning": 1 if washer_fluid_warning else 0,
+            "smart_key_warning": 1 if smart_key_warning else 0,
             "quelle": "kia_connect"
         }
 
@@ -178,6 +241,17 @@ def main():
             "car_12v_percent": car_12v_pct,
             "is_charging": is_charging,
             "is_plugged_in": is_plugged,
+            "is_locked": is_locked,
+            "doors": doors,
+            "windows": windows,
+            "climate": climate,
+            "charge_port_open": charge_port_open,
+            "charge_remaining_min": charge_remaining_min,
+            "location_lat": loc_lat,
+            "location_lon": loc_lon,
+            "tire_pressure_warning": tpms_warning,
+            "washer_fluid_warning": washer_fluid_warning,
+            "smart_key_warning": smart_key_warning,
             "zeitpunkt": snapshot_payload["zeitpunkt"],
             "server_saved": not args.dry_run,
             "post_result": post_result
@@ -194,7 +268,12 @@ def main():
             print(f"   Benzin-Reichweite:   {result_data['fuel_range_km']} km")
             if car_12v_pct is not None:
                 print(f"   12V-Batterie:        {car_12v_pct}%")
+            print(f"   Verriegelt:          {'Ja' if is_locked is True else ('Nein' if is_locked is False else 'Unbekannt')}")
             print(f"   Eingesteckt/Laden:   {'Ja' if is_plugged else 'Nein'} / {'Ja' if is_charging else 'Nein'}")
+            if charge_remaining_min is not None:
+                print(f"   Restladezeit:        ca. {charge_remaining_min} Min.")
+            if loc_lat and loc_lon:
+                print(f"   GPS-Position:        {loc_lat:.5f}, {loc_lon:.5f}")
             print(f"   Stand:               {result_data['zeitpunkt']}")
             if not args.dry_run:
                 print(f"   In Datenbank:        Gespeichert unter {server_url}/api/snapshots")

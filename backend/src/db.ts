@@ -83,6 +83,20 @@ export function initDatabase() {
       fuel_range_km REAL,
       ev_odometer_km REAL,
       soc_percent REAL,
+      car_12v_percent REAL,
+      is_charging INTEGER DEFAULT 0,
+      is_plugged_in INTEGER DEFAULT 0,
+      is_locked INTEGER,
+      doors_open_json TEXT,
+      windows_open_json TEXT,
+      climate_status_json TEXT,
+      charge_remaining_min INTEGER,
+      charge_port_open INTEGER DEFAULT 0,
+      location_lat REAL,
+      location_lon REAL,
+      tire_pressure_warning INTEGER DEFAULT 0,
+      washer_fluid_warning INTEGER DEFAULT 0,
+      smart_key_warning INTEGER DEFAULT 0,
       quelle TEXT NOT NULL DEFAULT 'manuell',
       created_at TEXT DEFAULT (datetime('now'))
     );
@@ -92,6 +106,33 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_snapshots_vehicle ON vehicle_snapshots(vehicle_id, zeitpunkt);
     CREATE INDEX IF NOT EXISTS idx_tariffs_lookup ON tariffs(quelle, gueltig_ab);
   `);
+
+  // Safe migration for existing databases: check and add missing columns
+  const snapshotCols = db.prepare("PRAGMA table_info(vehicle_snapshots)").all() as Array<{ name: string }>;
+  const existingColNames = new Set(snapshotCols.map(c => c.name));
+
+  const columnsToAdd: Record<string, string> = {
+    car_12v_percent: 'REAL',
+    is_charging: 'INTEGER DEFAULT 0',
+    is_plugged_in: 'INTEGER DEFAULT 0',
+    is_locked: 'INTEGER',
+    doors_open_json: 'TEXT',
+    windows_open_json: 'TEXT',
+    climate_status_json: 'TEXT',
+    charge_remaining_min: 'INTEGER',
+    charge_port_open: 'INTEGER DEFAULT 0',
+    location_lat: 'REAL',
+    location_lon: 'REAL',
+    tire_pressure_warning: 'INTEGER DEFAULT 0',
+    washer_fluid_warning: 'INTEGER DEFAULT 0',
+    smart_key_warning: 'INTEGER DEFAULT 0',
+  };
+
+  for (const [colName, colType] of Object.entries(columnsToAdd)) {
+    if (!existingColNames.has(colName)) {
+      db.exec(`ALTER TABLE vehicle_snapshots ADD COLUMN ${colName} ${colType};`);
+    }
+  }
 
   // Seed default vehicle if none exists
   const vehicleCountRow = db.prepare('SELECT COUNT(*) as count FROM vehicles').get() as { count: number };

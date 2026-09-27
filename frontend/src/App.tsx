@@ -14,6 +14,16 @@ import {
   WifiOff,
   Database,
   Calculator,
+  Lock,
+  Unlock,
+  MapPin,
+  AlertTriangle,
+  ShieldCheck,
+  Thermometer,
+  Car,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import {
   fetchDashboardStats,
@@ -91,6 +101,7 @@ export function App() {
   const [kiaPasswordInput, setKiaPasswordInput] = useState('');
   const [kiaPinInput, setKiaPinInput] = useState('');
   const [kiaForceRefresh, setKiaForceRefresh] = useState(false);
+  const [showVehicleMap, setShowVehicleMap] = useState(false);
 
   // Helper toast notification
   const showToast = (text: string, type: 'success' | 'warn' = 'success') => {
@@ -678,38 +689,382 @@ export function App() {
               </div>
             </div>
 
-            {/* Latest Snapshot / Odometer Summary */}
-            {stats?.latestSnapshot && (
-              <div className="card">
-                <div className="card-title">
-                  <Gauge size={18} /> Letzter Fahrzeug-Snapshot ({formatDate(stats.latestSnapshot.zeitpunkt)})
-                </div>
-                <div className="grid-3" style={{ textAlign: 'center' }}>
-                  <div style={{ padding: '10px', background: 'var(--bg-input)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Gesamtkilometerstand</div>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 700 }}>{formatNum(stats.latestSnapshot.odometer_km, 0)} km</div>
-                  </div>
-                  <div style={{ padding: '10px', background: 'var(--bg-input)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Akku & EV-Reichweite</div>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--ev-color)' }}>
-                      {stats.latestSnapshot.soc_percent !== null && stats.latestSnapshot.soc_percent !== undefined
-                        ? `${formatNum(stats.latestSnapshot.soc_percent, 0)}%`
-                        : ''}
-                      {stats.latestSnapshot.ev_range_km
-                        ? ` (${formatNum(stats.latestSnapshot.ev_range_km, 0)} km)`
-                        : ''}
-                      {!stats.latestSnapshot.soc_percent && !stats.latestSnapshot.ev_range_km && '-'}
+            {/* Latest Snapshot / Extended Vehicle Status & Monitor */}
+            {stats?.latestSnapshot && (() => {
+              const snap = stats.latestSnapshot;
+              const parseJsonSafe = <T,>(str?: string | null, fallback: T = {} as T): T => {
+                if (!str) return fallback;
+                try {
+                  return JSON.parse(str);
+                } catch {
+                  return fallback;
+                }
+              };
+
+              const doors = parseJsonSafe<Record<string, boolean>>(snap.doors_open_json, {});
+              const windows = parseJsonSafe<Record<string, boolean>>(snap.windows_open_json, {});
+              const climate = parseJsonSafe<{
+                is_on?: boolean;
+                target_temp?: number;
+                defrost?: boolean;
+                back_window_heater?: boolean;
+                steering_wheel_heater?: boolean;
+                outside_temp?: number;
+              }>(snap.climate_status_json, {});
+
+              const openDoorsList: string[] = [];
+              if (doors.front_left) openDoorsList.push('Fahrertür');
+              if (doors.front_right) openDoorsList.push('Beifahrertür');
+              if (doors.back_left) openDoorsList.push('Tür hinten links');
+              if (doors.back_right) openDoorsList.push('Tür hinten rechts');
+              if (doors.trunk) openDoorsList.push('Kofferraum');
+              if (doors.hood) openDoorsList.push('Motorhaube');
+
+              const openWindowsList: string[] = [];
+              if (windows.front_left) openWindowsList.push('Vorne links');
+              if (windows.front_right) openWindowsList.push('Vorne rechts');
+              if (windows.back_left) openWindowsList.push('Hinten links');
+              if (windows.back_right) openWindowsList.push('Hinten rechts');
+
+              const hasOpenItems = openDoorsList.length > 0 || openWindowsList.length > 0;
+              const hasWarnings = Boolean(snap.tire_pressure_warning || snap.washer_fluid_warning || snap.smart_key_warning);
+
+              const is12vLow = snap.car_12v_percent !== null && snap.car_12v_percent !== undefined && snap.car_12v_percent < 50;
+              const is12vMed = snap.car_12v_percent !== null && snap.car_12v_percent !== undefined && snap.car_12v_percent >= 50 && snap.car_12v_percent < 65;
+
+              return (
+                <div className="card" style={{ marginTop: '16px' }}>
+                  {/* Card Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
+                    <div className="card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Car size={20} style={{ color: 'var(--accent)' }} />
+                      <span>Fahrzeug-Status & Wächter ({stats.vehicle?.modell || 'Kia Ceed SW PHEV'})</span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        Stand: {formatDate(snap.zeitpunkt)}
+                      </span>
+                      {kiaStatus?.configured && (
+                        <button
+                          type="button"
+                          onClick={() => handleKiaSync(Boolean(kiaForceRefresh))}
+                          disabled={isKiaSyncing}
+                          className="btn-secondary"
+                          style={{ padding: '3px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                          title="Jetzt Telemetrie aktualisieren"
+                        >
+                          <RefreshCw size={12} className={isKiaSyncing ? 'spin' : ''} />
+                          {isKiaSyncing ? 'Laden...' : 'Aktualisieren'}
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <div style={{ padding: '10px', background: 'var(--bg-input)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Benzin-Restreichweite</div>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--fuel-color)' }}>
-                      {stats.latestSnapshot.fuel_range_km ? `${formatNum(stats.latestSnapshot.fuel_range_km, 0)} km` : '-'}
+
+                  {/* Status Badges Row */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+                    {/* Verriegelung */}
+                    {snap.is_locked !== null && snap.is_locked !== undefined && (
+                      <span
+                        className="badge"
+                        style={{
+                          backgroundColor: snap.is_locked ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.18)',
+                          color: snap.is_locked ? '#10b981' : '#ef4444',
+                          border: snap.is_locked ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.4)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {snap.is_locked ? <Lock size={13} /> : <Unlock size={13} />}
+                        {snap.is_locked ? 'Verriegelt' : 'Nicht verriegelt!'}
+                      </span>
+                    )}
+
+                    {/* Ladekabel & Ladezustand */}
+                    {snap.is_charging ? (
+                      <span
+                        className="badge"
+                        style={{
+                          backgroundColor: 'rgba(16, 185, 129, 0.25)',
+                          color: '#10b981',
+                          border: '1px solid rgba(16, 185, 129, 0.4)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        <Zap size={13} className="spin-slow" /> Lädt aktiv
+                      </span>
+                    ) : snap.is_plugged_in ? (
+                      <span
+                        className="badge"
+                        style={{
+                          backgroundColor: 'rgba(56, 189, 248, 0.18)',
+                          color: '#38bdf8',
+                          border: '1px solid rgba(56, 189, 248, 0.3)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        🔌 Angesteckt
+                      </span>
+                    ) : (
+                      <span
+                        className="badge"
+                        style={{
+                          backgroundColor: 'rgba(148, 163, 184, 0.12)',
+                          color: 'var(--text-muted)',
+                          border: '1px solid var(--border-color)',
+                        }}
+                      >
+                        Nicht angesteckt
+                      </span>
+                    )}
+
+                    {/* 12V Starterbatterie Badge */}
+                    {snap.car_12v_percent !== null && snap.car_12v_percent !== undefined && (
+                      <span
+                        className="badge"
+                        style={{
+                          backgroundColor: is12vLow
+                            ? 'rgba(239, 68, 68, 0.18)'
+                            : is12vMed
+                            ? 'rgba(245, 158, 11, 0.15)'
+                            : 'rgba(16, 185, 129, 0.15)',
+                          color: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981',
+                          border: `1px solid ${is12vLow ? 'rgba(239, 68, 68, 0.4)' : is12vMed ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontWeight: is12vLow ? 700 : 500,
+                        }}
+                      >
+                        {is12vLow ? <AlertTriangle size={13} /> : <Zap size={13} />}
+                        12V Starter: {snap.car_12v_percent}% {is12vLow ? '(Schwach!)' : ''}
+                      </span>
+                    )}
+
+                    {/* Vorklimatisierung */}
+                    {climate.is_on && (
+                      <span
+                        className="badge"
+                        style={{
+                          backgroundColor: 'rgba(56, 189, 248, 0.25)',
+                          color: '#38bdf8',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        <Thermometer size={13} /> Standklima läuft ({climate.target_temp || 21}°C)
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 4 Main Status KPI Cards */}
+                  <div className="grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '14px' }}>
+                    {/* Odometer */}
+                    <div style={{ padding: '12px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Tachostand</div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>{formatNum(snap.odometer_km, 0)} km</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Gesamtfahrleistung</div>
+                    </div>
+
+                    {/* EV Battery (HV) */}
+                    <div style={{ padding: '12px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Hochvolt-Akku (EV)</div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--ev-color)' }}>
+                        {snap.soc_percent !== null && snap.soc_percent !== undefined ? `${formatNum(snap.soc_percent, 0)}%` : '-'}
+                        {snap.ev_range_km ? ` (${formatNum(snap.ev_range_km, 0)} km)` : ''}
+                      </div>
+                      {/* Battery mini progress bar */}
+                      {snap.soc_percent !== null && snap.soc_percent !== undefined && (
+                        <div style={{ width: '100%', height: '5px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '3px', marginTop: '6px', overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.min(100, Math.max(0, snap.soc_percent))}%`, height: '100%', backgroundColor: 'var(--ev-color)' }} />
+                        </div>
+                      )}
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                        {snap.charge_remaining_min ? `⏱️ ca. ${snap.charge_remaining_min} Min. bis voll` : 'Kapazität: 8,9 kWh'}
+                      </div>
+                    </div>
+
+                    {/* Fuel Range */}
+                    <div style={{ padding: '12px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Benzin-Tank</div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--fuel-color)' }}>
+                        {snap.fuel_range_km ? `${formatNum(snap.fuel_range_km, 0)} km` : '-'}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                        Reichweite gesamt: {formatNum((snap.ev_range_km || 0) + (snap.fuel_range_km || 0), 0)} km
+                      </div>
+                    </div>
+
+                    {/* 12V Starter Battery */}
+                    <div style={{ padding: '12px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>12V Starter-Akku</div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 700, color: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981' }}>
+                        {snap.car_12v_percent !== null && snap.car_12v_percent !== undefined ? `${snap.car_12v_percent}%` : '-'}
+                      </div>
+                      {/* 12V mini progress bar */}
+                      {snap.car_12v_percent !== null && snap.car_12v_percent !== undefined && (
+                        <div style={{ width: '100%', height: '5px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '3px', marginTop: '6px', overflow: 'hidden' }}>
+                          <div
+                            style={{
+                              width: `${Math.min(100, Math.max(0, snap.car_12v_percent))}%`,
+                              height: '100%',
+                              backgroundColor: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981',
+                            }}
+                          />
+                        </div>
+                      )}
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                        {is12vLow ? '⚠️ Bitte bald fahren/laden!' : is12vMed ? 'Normale Entladung' : 'Optimaler Zustand'}
+                      </div>
                     </div>
                   </div>
+
+                  {/* Security & Doors / Windows Status Bar */}
+                  {snap.doors_open_json && (
+                    <div style={{ marginBottom: '14px' }}>
+                      {hasOpenItems ? (
+                        <div
+                          style={{
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                            border: '1px solid rgba(239, 68, 68, 0.35)',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '10px',
+                            fontSize: '0.88rem',
+                          }}
+                        >
+                          <AlertTriangle size={18} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                          <div>
+                            <strong style={{ color: '#ef4444' }}>Achtung: Geöffnete Komponenten am Fahrzeug!</strong>
+                            {openDoorsList.length > 0 && (
+                              <div style={{ marginTop: '2px' }}>
+                                Türen/Klappen: <span style={{ fontWeight: 600 }}>{openDoorsList.join(', ')}</span>
+                              </div>
+                            )}
+                            {openWindowsList.length > 0 && (
+                              <div style={{ marginTop: '2px' }}>
+                                Fenster: <span style={{ fontWeight: 600 }}>{openWindowsList.join(', ')}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            padding: '9px 14px',
+                            borderRadius: '8px',
+                            backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                            border: '1px solid rgba(16, 185, 129, 0.2)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            fontSize: '0.85rem',
+                          }}
+                        >
+                          <ShieldCheck size={18} style={{ color: '#10b981', flexShrink: 0 }} />
+                          <span style={{ color: 'var(--text-main)' }}>
+                            Alle 4 Türen, Fenster, Kofferraum und Motorhaube sind <strong>vollständig geschlossen</strong>.
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Warnings Banner if any */}
+                  {hasWarnings && (
+                    <div
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        fontSize: '0.85rem',
+                        marginBottom: '14px',
+                      }}
+                    >
+                      <AlertTriangle size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                      <div>
+                        {Boolean(snap.tire_pressure_warning) && <div>⚠️ Reifendruck überprüfen!</div>}
+                        {Boolean(snap.washer_fluid_warning) && <div>⚠️ Scheibenwaschwasser auffüllen!</div>}
+                        {Boolean(snap.smart_key_warning) && <div>⚠️ Schlüsselbatterie schwach!</div>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* GPS Parkposition & Map Preview */}
+                  {snap.location_lat && snap.location_lon && (
+                    <div style={{ paddingTop: '10px', borderTop: '1px solid var(--border-color)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.88rem' }}>
+                          <MapPin size={16} style={{ color: 'var(--accent)' }} />
+                          <span>
+                            Parkposition:{' '}
+                            <strong style={{ fontFamily: 'monospace' }}>
+                              {snap.location_lat.toFixed(5)}, {snap.location_lon.toFixed(5)}
+                            </strong>
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowVehicleMap(!showVehicleMap)}
+                            className="btn-secondary"
+                            style={{ padding: '4px 10px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            {showVehicleMap ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            {showVehicleMap ? 'Karte verbergen' : 'Karte anzeigen'}
+                          </button>
+
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${snap.location_lat},${snap.location_lon}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn-primary"
+                            style={{
+                              padding: '4px 10px',
+                              fontSize: '0.78rem',
+                              textDecoration: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <ExternalLink size={13} /> Navigation / Maps
+                          </a>
+                        </div>
+                      </div>
+
+                      {showVehicleMap && (
+                        <div style={{ marginTop: '10px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                          <iframe
+                            title="Fahrzeug Parkposition"
+                            width="100%"
+                            height="220"
+                            style={{ border: 0, display: 'block' }}
+                            src={`https://www.openstreetmap.org/export/embed.html?bbox=${snap.location_lon - 0.005}%2C${snap.location_lat - 0.003}%2C${snap.location_lon + 0.005}%2C${snap.location_lat + 0.003}&layer=mapnik&marker=${snap.location_lat}%2C${snap.location_lon}`}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
 
