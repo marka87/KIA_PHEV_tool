@@ -445,8 +445,8 @@ body {
   flex-direction: column;
 }
 
-.vehicle-card-header { order: 1; }
-.remote-details { order: 2; }
+.remote-details { order: 1; }
+.vehicle-card-header { order: 2; }
 .vehicle-badges { order: 3; }
 .vehicle-metrics { order: 4; }
 .vehicle-doors { order: 5; }
@@ -483,6 +483,189 @@ body {
 
 .remote-details > div button {
   min-height: 44px;
+}
+
+.dashboard-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-content > .vehicle-card { order: 1; }
+.dashboard-content > .savings-card { order: 2; }
+.dashboard-content > .cost-comparison { order: 3; }
+.dashboard-content > .break-even-details { order: 4; }
+
+@media (max-width: 639px) {
+  .container {
+    padding: 8px;
+  }
+
+  .dashboard-content {
+    gap: 8px;
+  }
+
+  .dashboard-content > .card,
+  .dashboard-content > .grid-2 {
+    margin-bottom: 0 !important;
+  }
+
+  .card,
+  .kpi-box {
+    padding: 10px;
+    border-radius: 8px;
+  }
+
+  .vehicle-card-header {
+    margin-bottom: 6px !important;
+  }
+
+  .vehicle-card-header .card-title {
+    font-size: 0.78rem;
+    margin-bottom: 0;
+  }
+
+  .vehicle-card-header > div:last-child > span {
+    display: none;
+  }
+
+  .vehicle-card {
+    gap: 0;
+  }
+
+  .vehicle-badges {
+    margin-bottom: 6px !important;
+    gap: 4px !important;
+  }
+
+  .vehicle-badges .badge {
+    font-size: 0.62rem;
+    padding: 2px 5px;
+  }
+
+  .vehicle-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 1px !important;
+    margin-bottom: 6px !important;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 7px;
+  }
+
+  .vehicle-metrics > div {
+    min-height: 104px;
+    padding: 9px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #030404 !important;
+  }
+
+  .vehicle-metrics > div:nth-child(odd) {
+    border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+
+  .vehicle-metrics > div:nth-child(-n + 2) {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+
+  .vehicle-metrics > div > div:first-child {
+    font-size: 0.62rem !important;
+  }
+
+  .vehicle-metrics > div > div:nth-child(2) {
+    font-size: 1rem !important;
+  }
+
+  .vehicle-status-line {
+    padding: 7px 8px;
+    margin-bottom: 6px;
+    font-size: 0.7rem;
+  }
+
+  .remote-details {
+    margin-bottom: 6px;
+  }
+
+  .remote-details > summary {
+    min-height: 30px;
+    padding: 3px 0;
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .remote-details > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 4px !important;
+  }
+
+  .remote-details > div button {
+    min-height: 38px;
+    padding: 5px !important;
+    font-size: 0.7rem !important;
+  }
+
+  .savings-card {
+    padding: 10px;
+  }
+
+  .savings-card h2 {
+    font-size: 0.9rem !important;
+  }
+
+  .savings-card p {
+    font-size: 0.65rem !important;
+    margin-bottom: 0;
+  }
+
+  .savings-card .kpi-value {
+    font-size: 1.3rem;
+  }
+
+  .cost-comparison {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .cost-comparison .kpi-box {
+    min-width: 0;
+  }
+
+  .cost-comparison .card-title {
+    font-size: 0.62rem;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+  }
+
+  .cost-comparison .kpi-value {
+    font-size: 1.2rem;
+  }
+
+  .cost-comparison .kpi-sub {
+    font-size: 0.68rem !important;
+  }
+
+  .cost-comparison .metric-grid {
+    font-size: 0.62rem !important;
+    margin-top: 8px !important;
+    padding-top: 7px !important;
+  }
+
+  .cost-comparison .metric-row {
+    grid-template-columns: 1fr auto;
+    gap: 4px;
+  }
+
+  .cost-comparison .metric-row > :first-child {
+    white-space: nowrap;
+  }
+
+  .break-even-details {
+    padding: 10px;
+  }
+
+  .vehicle-location {
+    font-size: 0.7rem;
+  }
 }
 
 .lock-status {

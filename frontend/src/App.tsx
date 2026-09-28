@@ -486,7 +486,7 @@ export function App() {
   const isSimEvCheaper = simEvPrice <= simulatedBreakEven;
 
   return (
-    <div>
+    <div className="dashboard-content">
       {/* Header */}
       <header className="app-header">
         <div className="header-content">
@@ -572,11 +572,11 @@ export function App() {
           <div>
             {/* Break-Even Highlight Banner */}
             {stats && (
-              <div className="card kpi-break-even" style={{ marginBottom: '20px' }}>
+              <div className="card kpi-break-even savings-card" style={{ marginBottom: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
                   <div>
                     <span className="badge" style={{ backgroundColor: 'rgba(56, 189, 248, 0.25)', color: '#38bdf8', marginBottom: '6px' }}>
-                      Kosten-Entscheidungshilfe
+                      Spar-Status
                     </span>
                     <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: '4px 0' }}>
                       {stats.breakEven.isEvCheaper ? 'Elektrisch fahren ist günstiger' : 'Benzinbetrieb ist aktuell günstiger'}
@@ -603,7 +603,7 @@ export function App() {
             )}
 
             {/* Core KPI Cards: EV vs Benzin */}
-            <div className="grid-2">
+            <div className="grid-2 cost-comparison">
               {/* EV Box */}
               <div className="card kpi-box kpi-ev">
                 <div className="card-title" style={{ color: 'var(--ev-color)' }}>
@@ -673,7 +673,7 @@ export function App() {
 
             {/* Interactive Live Break-Even Calculator */}
             <details
-              className="card dashboard-details"
+              className="card dashboard-details break-even-details"
               style={{ marginTop: '8px' }}
               open={showSimulator}
               onToggle={(event) => setShowSimulator(event.currentTarget.open)}
@@ -1101,7 +1101,7 @@ export function App() {
                     >
                       <summary>
                           <Radio size={16} style={{ color: 'var(--accent)' }} />
-                          Steuerung
+                          Bedienung
                           <span className="details-hint">{snap.is_locked ? 'Verriegelt' : 'Nicht verriegelt'}</span>
                         {isRemoteLoading && (
                           <span style={{ fontSize: '0.8rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
