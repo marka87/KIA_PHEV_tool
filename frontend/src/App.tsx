@@ -486,13 +486,13 @@ export function App() {
   const isSimEvCheaper = simEvPrice <= simulatedBreakEven;
 
   return (
-    <div className="dashboard-content">
+    <div>
       {/* Header */}
       <header className="app-header">
         <div className="header-content">
           <div className="brand">
             <img src="/icon.svg" alt="PHEV" className="brand-icon" />
-            <div>
+            <div className="dashboard-content">
               <span>PHEV Tracker</span>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>
                 {stats?.vehicle.name || 'Kia Ceed SW PHEV'}
