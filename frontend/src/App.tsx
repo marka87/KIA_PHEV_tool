@@ -102,7 +102,7 @@ export function App() {
   const [simEvPriceInput, setSimEvPriceInput] = useState('0,28');
   const [simFuelPriceInput, setSimFuelPriceInput] = useState('1,65');
   const [showSimulator, setShowSimulator] = useState(false);
-  const [showRemoteControls, setShowRemoteControls] = useState(false);
+  const [showRemoteControls, setShowRemoteControls] = useState(true);
 
   // Kia Connect integration state
   const [kiaStatus, setKiaStatus] = useState<KiaStatus | null>(null);
@@ -798,12 +798,12 @@ export function App() {
               const is12vMed = snap.car_12v_percent !== null && snap.car_12v_percent !== undefined && snap.car_12v_percent >= 50 && snap.car_12v_percent < 65;
 
               return (
-                <div className="card" style={{ marginTop: '16px' }}>
+                <div className="card vehicle-card" style={{ marginTop: '16px' }}>
                   {/* Card Header */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
+                  <div className="vehicle-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
                     <div className="card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Car size={20} style={{ color: 'var(--accent)' }} />
-                      <span>Fahrzeug-Status & Wächter ({stats.vehicle?.modell || 'Kia Ceed SW PHEV'})</span>
+                      <span>Fahrzeugstatus</span>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -838,7 +838,7 @@ export function App() {
                   </div>
 
                   {/* Status Badges Row */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+                  <div className="vehicle-badges" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
                     {/* Ladekabel & Ladezustand */}
                     {snap.is_charging ? (
                       <span
@@ -901,7 +901,7 @@ export function App() {
                   </div>
 
                   {/* 4 Main Status KPI Cards */}
-                  <div className="grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '14px' }}>
+                  <div className="vehicle-metrics grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '14px' }}>
                     {/* Odometer */}
                     <div style={{ padding: '12px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Tachostand</div>
@@ -963,7 +963,7 @@ export function App() {
 
                   {/* Security & Doors / Windows Status Bar */}
                   {snap.doors_open_json && (
-                    <div className="vehicle-status-line">
+                    <div className="vehicle-status-line vehicle-doors">
                       {snap.is_locked !== null && snap.is_locked !== undefined && (
                         <>
                           {snap.is_locked ? <KeyRound size={15} color="var(--ev-color)" /> : <KeyRound size={15} color="var(--danger)" />}
@@ -975,6 +975,7 @@ export function App() {
                       )}
                       {hasOpenItems ? (
                         <div
+                          className="vehicle-warnings"
                           style={{
                             display: 'flex',
                             alignItems: 'flex-start',
@@ -1034,7 +1035,7 @@ export function App() {
 
                   {/* GPS Parkposition & Map Preview */}
                   {snap.location_lat && snap.location_lon && (
-                    <div style={{ paddingTop: '10px', borderTop: '1px solid var(--border-color)' }}>
+                    <div className="vehicle-location" style={{ paddingTop: '10px', borderTop: '1px solid var(--border-color)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.88rem' }}>
                           <MapPin size={16} style={{ color: 'var(--accent)' }} />
@@ -1100,8 +1101,8 @@ export function App() {
                     >
                       <summary>
                           <Radio size={16} style={{ color: 'var(--accent)' }} />
-                          Fahrzeug-Fernsteuerung
-                          <span className="details-hint">Remote-Befehle</span>
+                          Steuerung
+                          <span className="details-hint">{snap.is_locked ? 'Verriegelt' : 'Nicht verriegelt'}</span>
                         {isRemoteLoading && (
                           <span style={{ fontSize: '0.8rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <RefreshCw size={12} className="spin" /> Befehl '{remoteActionActive}' wird ausgeführt...

@@ -440,6 +440,51 @@ body {
   font-size: 0.85rem;
 }
 
+.vehicle-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.vehicle-card-header { order: 1; }
+.remote-details { order: 2; }
+.vehicle-badges { order: 3; }
+.vehicle-metrics { order: 4; }
+.vehicle-doors { order: 5; }
+.vehicle-warnings { order: 6; }
+.vehicle-location { order: 7; }
+
+.remote-details {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  border-top: 0 !important;
+  margin-bottom: 14px;
+}
+
+.remote-details > summary {
+  min-height: 42px;
+  padding: 8px 0;
+  color: var(--text-main);
+}
+
+.remote-details > summary::after {
+  content: 'Öffnen';
+  color: var(--text-muted);
+}
+
+.remote-details[open] > summary::after {
+  content: 'Schließen';
+}
+
+.remote-details > div {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+.remote-details > div button {
+  min-height: 44px;
+}
+
 .lock-status {
   display: inline-flex;
   align-items: center;
