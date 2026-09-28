@@ -1,8 +1,8 @@
 :root {
-  --bg-main: #0b1120;
-  --bg-card: #151f32;
-  --bg-card-hover: #1e293b;
-  --bg-input: #0f172a;
+  --bg-main: #000000;
+  --bg-card: #0a0c0d;
+  --bg-card-hover: #111516;
+  --bg-input: #050606;
   --border: rgba(255, 255, 255, 0.08);
   --border-focus: #38bdf8;
   --text-main: #f8fafc;
@@ -279,7 +279,7 @@ body {
   border-radius: var(--radius);
   padding: 24px;
   margin-bottom: 16px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
 }
 
 .card-title {
@@ -328,17 +328,17 @@ body {
 }
 
 .kpi-ev {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.05) 100%);
+  background: rgba(52, 211, 153, 0.07);
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
 .kpi-fuel {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%);
+  background: rgba(251, 191, 36, 0.07);
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
 .kpi-break-even {
-  background: linear-gradient(135deg, rgba(2, 132, 199, 0.2) 0%, rgba(16, 185, 129, 0.15) 100%);
+  background: rgba(52, 211, 153, 0.08);
   border: 1px solid rgba(56, 189, 248, 0.4);
 }
 
@@ -375,6 +375,19 @@ body {
 .metric-row > :last-child {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.price-input {
+  max-width: 180px;
+  font-size: 1.1rem;
+  font-weight: 650;
+  color: var(--text-main);
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+.price-input:focus {
+  border-color: var(--ev-color);
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.12);
 }
 
 .ghost-button {

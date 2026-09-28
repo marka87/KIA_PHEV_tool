@@ -78,6 +78,42 @@ app.get('/api/vehicles/:id', (req, res) => {
   res.json(vehicle);
 });
 
+app.get('/api/settings/break-even', (req, res) => {
+  const vehicleId = req.query.vehicleId ? Number(req.query.vehicleId) : 1;
+  const rows = db.prepare(`
+    SELECT setting_key, setting_value
+    FROM app_settings
+    WHERE vehicle_id = ? AND setting_key IN ('break_even_ev_price', 'break_even_fuel_price')
+  `).all(vehicleId) as Array<{ setting_key: string; setting_value: string }>;
+
+  const settings = Object.fromEntries(rows.map((row) => [row.setting_key, Number(row.setting_value)]));
+  res.json({
+    electricityPricePerKwh: Number.isFinite(settings.break_even_ev_price) ? settings.break_even_ev_price : null,
+    fuelPricePerLiter: Number.isFinite(settings.break_even_fuel_price) ? settings.break_even_fuel_price : null,
+  });
+});
+
+app.put('/api/settings/break-even', (req, res) => {
+  const vehicleId = req.body.vehicleId ? Number(req.body.vehicleId) : 1;
+  const electricityPricePerKwh = Number(req.body.electricityPricePerKwh);
+  const fuelPricePerLiter = Number(req.body.fuelPricePerLiter);
+
+  if (!Number.isInteger(vehicleId) || vehicleId < 1 || !Number.isFinite(electricityPricePerKwh) || electricityPricePerKwh <= 0 || !Number.isFinite(fuelPricePerLiter) || fuelPricePerLiter <= 0) {
+    return res.status(400).json({ error: 'Gültige positive Strom- und Spritpreise sind erforderlich' });
+  }
+
+  const saveSetting = db.prepare(`
+    INSERT INTO app_settings (vehicle_id, setting_key, setting_value, updated_at)
+    VALUES (?, ?, ?, datetime('now'))
+    ON CONFLICT(vehicle_id, setting_key) DO UPDATE SET
+      setting_value = excluded.setting_value,
+      updated_at = excluded.updated_at
+  `);
+  saveSetting.run(vehicleId, 'break_even_ev_price', String(electricityPricePerKwh));
+  saveSetting.run(vehicleId, 'break_even_fuel_price', String(fuelPricePerLiter));
+  res.json({ message: 'Break-Even-Preise gespeichert' });
+});
+
 app.post('/api/vehicles', asyncHandler((req, res) => {
   const {
     name,

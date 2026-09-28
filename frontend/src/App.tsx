@@ -46,6 +46,8 @@ import {
   saveKiaConfig,
   syncKiaConnect,
   sendKiaRemoteControl,
+  fetchBreakEvenSettings,
+  saveBreakEvenSettings,
 } from './api';
 import type {
   DashboardStats,
@@ -96,6 +98,8 @@ export function App() {
   // Simulator state in Dashboard
   const [simEvPrice, setSimEvPrice] = useState<number>(0.28);
   const [simFuelPrice, setSimFuelPrice] = useState<number>(1.65);
+  const [simEvPriceInput, setSimEvPriceInput] = useState('0,28');
+  const [simFuelPriceInput, setSimFuelPriceInput] = useState('1,65');
   const [showSimulator, setShowSimulator] = useState(false);
   const [showRemoteControls, setShowRemoteControls] = useState(false);
 
@@ -166,8 +170,13 @@ export function App() {
       const data = await fetchDashboardStats(1);
       setStats(data);
       saveCachedDashboard(data);
-      setSimEvPrice(data.breakEven.electricityPricePerKwh);
-      setSimFuelPrice(data.breakEven.fuelPricePerLiter);
+      const savedSettings = await fetchBreakEvenSettings(1);
+      const evPrice = savedSettings.electricityPricePerKwh ?? data.breakEven.electricityPricePerKwh;
+      const fuelPrice = savedSettings.fuelPricePerLiter ?? data.breakEven.fuelPricePerLiter;
+      setSimEvPrice(evPrice);
+      setSimFuelPrice(fuelPrice);
+      setSimEvPriceInput(String(evPrice).replace('.', ','));
+      setSimFuelPriceInput(String(fuelPrice).replace('.', ','));
     } catch (err) {
       console.warn('Backend nicht erreichbar, nutze gecachte Daten falls vorhanden:', err);
       const cached = getCachedDashboard();
@@ -175,9 +184,25 @@ export function App() {
         setStats(cached);
         setSimEvPrice(cached.breakEven.electricityPricePerKwh);
         setSimFuelPrice(cached.breakEven.fuelPricePerLiter);
+        setSimEvPriceInput(String(cached.breakEven.electricityPricePerKwh).replace('.', ','));
+        setSimFuelPriceInput(String(cached.breakEven.fuelPricePerLiter).replace('.', ','));
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveSimulatorPrices = async (evInput: string, fuelInput: string) => {
+    const evPrice = Number(evInput.replace(',', '.'));
+    const fuelPrice = Number(fuelInput.replace(',', '.'));
+    if (!Number.isFinite(evPrice) || evPrice <= 0 || !Number.isFinite(fuelPrice) || fuelPrice <= 0) return;
+
+    setSimEvPrice(evPrice);
+    setSimFuelPrice(fuelPrice);
+    try {
+      await saveBreakEvenSettings(evPrice, fuelPrice);
+    } catch (err: any) {
+      showToast(err.message || 'Break-Even-Preise konnten nicht gespeichert werden', 'warn');
     }
   };
 
@@ -545,7 +570,7 @@ export function App() {
                       Kosten-Entscheidungshilfe
                     </span>
                     <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: '4px 0' }}>
-                      {stats.breakEven.isEvCheaper ? '⚡ Elektrisch fahren ist günstiger' : '⛽ Benzinbetrieb ist aktuell günstiger'}
+                      {stats.breakEven.isEvCheaper ? 'Elektrisch fahren ist günstiger' : 'Benzinbetrieb ist aktuell günstiger'}
                     </h2>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                       Break-Even-Strompreis:{' '}
@@ -654,39 +679,37 @@ export function App() {
 
               <div className="grid-2" style={{ marginBottom: '16px' }}>
                 <div>
-                  <label>Strompreis an der Ladesäule: {formatNum(simEvPrice, 2)} €/kWh</label>
+                  <label htmlFor="sim-ev-price">Strompreis (€/kWh)</label>
                   <input
-                    type="range"
-                    min="0.15"
-                    max="0.95"
-                    step="0.01"
-                    value={simEvPrice}
-                    onChange={(e) => setSimEvPrice(Number(e.target.value))}
-                    style={{ width: '100%', cursor: 'pointer' }}
+                    id="sim-ev-price"
+                    className="price-input"
+                    type="text"
+                    inputMode="decimal"
+                    value={simEvPriceInput}
+                    onChange={(e) => setSimEvPriceInput(e.target.value)}
+                    onBlur={() => saveSimulatorPrices(simEvPriceInput, simFuelPriceInput)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.currentTarget.blur();
+                    }}
+                    aria-label="Strompreis pro Kilowattstunde"
                   />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    <span>0,15 € (PV/Nachttarif)</span>
-                    <span>0,39 € (VKW)</span>
-                    <span>0,79 € (DC Schnelllader)</span>
-                  </div>
                 </div>
 
                 <div>
-                  <label>Aktueller Spritpreis: {formatNum(simFuelPrice, 2)} €/L</label>
+                  <label htmlFor="sim-fuel-price">Spritpreis (€/L)</label>
                   <input
-                    type="range"
-                    min="1.30"
-                    max="2.30"
-                    step="0.02"
-                    value={simFuelPrice}
-                    onChange={(e) => setSimFuelPrice(Number(e.target.value))}
-                    style={{ width: '100%', cursor: 'pointer' }}
+                    id="sim-fuel-price"
+                    className="price-input"
+                    type="text"
+                    inputMode="decimal"
+                    value={simFuelPriceInput}
+                    onChange={(e) => setSimFuelPriceInput(e.target.value)}
+                    onBlur={() => saveSimulatorPrices(simEvPriceInput, simFuelPriceInput)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.currentTarget.blur();
+                    }}
+                    aria-label="Spritpreis pro Liter"
                   />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    <span>1,30 €/L</span>
-                    <span>1,65 €/L (Durchschnitt)</span>
-                    <span>2,30 €/L</span>
-                  </div>
                 </div>
               </div>
 
@@ -835,7 +858,7 @@ export function App() {
                           gap: '4px',
                         }}
                       >
-                        🔌 Angesteckt
+                        <Power size={13} /> Angesteckt
                       </span>
                     ) : (
                       <span
@@ -847,29 +870,6 @@ export function App() {
                         }}
                       >
                         Nicht angesteckt
-                      </span>
-                    )}
-
-                    {/* 12V Starterbatterie Badge */}
-                    {snap.car_12v_percent !== null && snap.car_12v_percent !== undefined && (
-                      <span
-                        className="badge"
-                        style={{
-                          backgroundColor: is12vLow
-                            ? 'rgba(239, 68, 68, 0.18)'
-                            : is12vMed
-                            ? 'rgba(245, 158, 11, 0.15)'
-                            : 'rgba(16, 185, 129, 0.15)',
-                          color: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981',
-                          border: `1px solid ${is12vLow ? 'rgba(239, 68, 68, 0.4)' : is12vMed ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          fontWeight: is12vLow ? 700 : 500,
-                        }}
-                      >
-                        {is12vLow ? <AlertTriangle size={13} /> : <Zap size={13} />}
-                        12V Starter: {snap.car_12v_percent}% {is12vLow ? '(Schwach!)' : ''}
                       </span>
                     )}
 

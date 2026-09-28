@@ -121,6 +121,33 @@ export async function fetchDashboardStats(vehicleId: number = 1): Promise<Dashbo
   return res.json();
 }
 
+export interface BreakEvenSettings {
+  electricityPricePerKwh: number | null;
+  fuelPricePerLiter: number | null;
+}
+
+export async function fetchBreakEvenSettings(vehicleId: number = 1): Promise<BreakEvenSettings> {
+  const res = await fetch(`${API_BASE}/settings/break-even?vehicleId=${vehicleId}`);
+  if (!res.ok) throw new Error('Fehler beim Laden der Break-Even-Einstellungen');
+  return res.json();
+}
+
+export async function saveBreakEvenSettings(
+  electricityPricePerKwh: number,
+  fuelPricePerLiter: number,
+  vehicleId: number = 1,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/settings/break-even`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ vehicleId, electricityPricePerKwh, fuelPricePerLiter }),
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'Fehler beim Speichern der Break-Even-Einstellungen' }));
+    throw new Error(error.error);
+  }
+}
+
 export async function fetchVehicles(): Promise<Vehicle[]> {
   const res = await fetch(`${API_BASE}/vehicles`);
   if (!res.ok) throw new Error('Fehler beim Laden der Fahrzeuge');
