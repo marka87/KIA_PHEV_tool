@@ -26,6 +26,7 @@ import {
   ChevronUp,
   Power,
   Radio,
+  KeyRound,
 } from 'lucide-react';
 import {
   fetchDashboardStats,
@@ -111,6 +112,9 @@ export function App() {
   const [kiaPinInput, setKiaPinInput] = useState('');
   const [kiaForceRefresh, setKiaForceRefresh] = useState(false);
   const [showVehicleMap, setShowVehicleMap] = useState(false);
+  const [dashboardTheme, setDashboardTheme] = useState<'oled' | 'blue'>(
+    () => (localStorage.getItem('dashboard-theme') as 'oled' | 'blue' | null) || 'oled',
+  );
 
   // Kia Remote Controls state
   const [isRemoteLoading, setIsRemoteLoading] = useState(false);
@@ -121,6 +125,11 @@ export function App() {
     setToastMsg({ text, type });
     setTimeout(() => setToastMsg(null), 4000);
   };
+
+  useEffect(() => {
+    document.documentElement.dataset.dashboardTheme = dashboardTheme;
+    localStorage.setItem('dashboard-theme', dashboardTheme);
+  }, [dashboardTheme]);
 
   // Monitor online status & offline sync queue
   useEffect(() => {
@@ -957,8 +966,8 @@ export function App() {
                     <div className="vehicle-status-line">
                       {snap.is_locked !== null && snap.is_locked !== undefined && (
                         <>
-                          {snap.is_locked ? <Lock size={15} color="var(--ev-color)" /> : <Unlock size={15} color="var(--danger)" />}
-                          <strong style={{ color: snap.is_locked ? 'var(--ev-color)' : 'var(--danger)' }}>
+                          {snap.is_locked ? <KeyRound size={15} color="var(--ev-color)" /> : <KeyRound size={15} color="var(--danger)" />}
+                          <strong className={`lock-status ${snap.is_locked ? 'locked' : 'unlocked'}`}>
                             {snap.is_locked ? 'Verriegelt' : 'Nicht verriegelt'}
                           </strong>
                           <span style={{ color: 'var(--text-muted)' }}>·</span>
@@ -1826,6 +1835,23 @@ export function App() {
         {/* ========================================================================= */}
         {activeTab === 'settings' && (
           <div>
+            <div className="card">
+              <div className="card-title">
+                <Settings size={18} /> Dashboard-Darstellung
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label htmlFor="dashboard-theme">Hintergrund</label>
+                <select
+                  id="dashboard-theme"
+                  value={dashboardTheme}
+                  onChange={(event) => setDashboardTheme(event.target.value as 'oled' | 'blue')}
+                >
+                  <option value="oled">OLED Schwarz</option>
+                  <option value="blue">Dunkles Blau</option>
+                </select>
+              </div>
+            </div>
+
             {/* Tariffs List */}
             <div className="card">
               <div className="card-title">

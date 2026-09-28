@@ -17,6 +17,13 @@
   --radius: 12px;
 }
 
+:root[data-dashboard-theme='blue'] {
+  --bg-main: #07111b;
+  --bg-card: #0b1722;
+  --bg-card-hover: #122536;
+  --bg-input: #07111b;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -37,6 +44,7 @@ body {
   min-height: 100vh;
   padding-bottom: 80px; /* Space for mobile bottom bar */
   font-variant-numeric: tabular-nums;
+  background-image: none;
 }
 
 @media (min-width: 768px) {
@@ -430,6 +438,21 @@ body {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.03);
   font-size: 0.85rem;
+}
+
+.lock-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.lock-status.locked {
+  color: var(--ev-color);
+}
+
+.lock-status.unlocked {
+  color: var(--danger);
 }
 
 /* Form Controls */
