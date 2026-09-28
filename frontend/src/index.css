@@ -266,11 +266,12 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   cursor: pointer;
   flex: 1;
   position: relative;
-  top: -12px;
+  top: -8px;
+  gap: 2px;
 }
 
 .mobile-tab-center-btn {
@@ -294,7 +295,7 @@ body {
 .mobile-tab-center span {
   font-size: 0.68rem;
   color: #64748b;
-  margin-top: 3px;
+  margin-top: 0;
   font-weight: 500;
 }
 
@@ -661,9 +662,21 @@ body {
   gap: 16px;
 }
 
-.status-col {
+.status-tile {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  background: #030404;
+}
+
+.status-tile-icon {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 2px;
 }
 
 .status-metric-label {
@@ -680,14 +693,6 @@ body {
   color: #f8fafc;
   line-height: 1.2;
   margin-top: 2px;
-}
-
-.status-divider-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 0 8px 0;
-  color: #94a3b8;
 }
 
 .status-battery-label {
@@ -900,10 +905,69 @@ body {
   justify-content: space-between;
   gap: 6px;
   color: #cbd5e1;
+  align-items: baseline;
 }
 
 .cost-detail-row > :first-child {
   color: #64748b;
+  font-size: 0.68rem;
+  min-width: 0;
+}
+
+.cost-detail-row > :last-child {
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+@media (max-width: 639px) {
+  .status-grid-tiles {
+    gap: 1px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 7px;
+    overflow: hidden;
+  }
+
+  .status-grid-tiles .status-tile {
+    min-height: 112px;
+    padding: 9px;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .status-grid-tiles .status-tile:nth-child(odd) {
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .status-grid-tiles .status-tile:nth-child(-n + 2) {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .status-grid-tiles .status-metric-label,
+  .status-grid-tiles .status-battery-label {
+    font-size: 0.62rem;
+  }
+
+  .status-grid-tiles .status-metric-val,
+  .status-grid-tiles .status-battery-val {
+    font-size: 1rem;
+    white-space: nowrap;
+  }
+
+  .status-grid-tiles .status-subtext {
+    font-size: 0.62rem;
+    white-space: nowrap;
+  }
+
+  .cost-detail-row {
+    min-height: 28px;
+    gap: 3px;
+  }
+
+  .cost-detail-row > :last-child {
+    font-size: 0.62rem;
+  }
 }
 
 .cost-btn-details-ev {

@@ -713,68 +713,42 @@ export function App() {
                     </div>
                   </div>
 
-                  <div className="status-grid">
+                  <div className="status-grid status-grid-tiles">
                     {/* Left Column: Tacho & HV-Akku */}
-                    <div className="status-col">
+                    <div className="status-tile">
                       <Gauge size={22} style={{ color: '#cbd5e1' }} />
                       <div className="status-metric-label">TACHO</div>
                       <div className="status-metric-val">
                         {formatNum(snap?.odometer_km || 0, 0)} km
                       </div>
 
-                      <div className="status-divider-icon">
-                        <svg width="40" height="18" viewBox="0 0 40 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#64748b' }}>
-                          <rect x="2" y="2" width="28" height="6" rx="2" />
-                          <line x1="30" y1="4" x2="32" y2="4" />
-                          <line x1="30" y1="6" x2="32" y2="6" />
-                          <path d="M4 12h20c1.5 0 3 1 4 2.5v1H1v-1c1-1.5 2-2.5 3-2.5z" />
-                          <circle cx="6" cy="15.5" r="1.5" />
-                          <circle cx="24" cy="15.5" r="1.5" />
-                        </svg>
-                      </div>
-
-                      <div className="status-battery-label">
-                        <BatteryCharging size={18} style={{ color: '#22c55e' }} />
-                        <span>HV-AKKU</span>
-                      </div>
-                      <div className="status-battery-val" style={{ color: '#22c55e' }}>
-                        {snap?.soc_percent !== null && snap?.soc_percent !== undefined ? `${formatNum(snap.soc_percent, 0)}%` : '-%'}
-                        {snap?.ev_range_km ? ` (${formatNum(snap.ev_range_km, 0)} km)` : ''}
-                      </div>
-
-                      <div className="status-progress-track">
-                        <div
-                          className="status-progress-fill"
-                          style={{
-                            width: `${Math.min(100, Math.max(0, snap?.soc_percent || 0))}%`,
-                            backgroundColor: '#22c55e',
-                          }}
-                        />
-                      </div>
-
-                      <div className="status-subtext">
-                        {snap?.charge_remaining_min
-                          ? `ca. ${snap.charge_remaining_min} Min. bis voll`
-                          : 'Optimaler Zustand'}
-                      </div>
                     </div>
 
-                    {/* Right Column: Fuel Range & 12V-Akku */}
-                    <div className="status-col">
+                    <div className="status-tile">
                       <Fuel size={22} style={{ color: '#fbbf24' }} />
                       <div className="status-metric-label">REICHWEITE (BENZIN)</div>
                       <div className="status-metric-val">
                         {snap?.fuel_range_km ? `${formatNum(snap.fuel_range_km, 0)} km` : '- km'}
                       </div>
 
-                      <div className="status-divider-icon">
-                        <Fuel size={20} style={{ color: '#fbbf24' }} />
-                      </div>
+                    </div>
 
-                      <div className="status-battery-label">
-                        <Battery size={18} style={{ color: '#fbbf24' }} />
-                        <span>12V-AKKU</span>
+                    <div className="status-tile">
+                      <BatteryCharging className="status-tile-icon" style={{ color: '#22c55e' }} />
+                      <div className="status-battery-label"><span>HV-AKKU</span></div>
+                      <div className="status-battery-val" style={{ color: '#22c55e' }}>
+                        {snap?.soc_percent !== null && snap?.soc_percent !== undefined ? `${formatNum(snap.soc_percent, 0)}%` : '-%'}
+                        {snap?.ev_range_km ? ` (${formatNum(snap.ev_range_km, 0)} km)` : ''}
                       </div>
+                      <div className="status-progress-track">
+                        <div className="status-progress-fill" style={{ width: `${Math.min(100, Math.max(0, snap?.soc_percent || 0))}%`, backgroundColor: '#22c55e' }} />
+                      </div>
+                      <div className="status-subtext">{snap?.charge_remaining_min ? `ca. ${snap.charge_remaining_min} Min. bis voll` : 'Optimaler Zustand'}</div>
+                    </div>
+
+                    <div className="status-tile">
+                      <Battery className="status-tile-icon" style={{ color: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981' }} />
+                      <div className="status-battery-label"><span>12V-AKKU</span></div>
                       <div
                         className="status-battery-val"
                         style={{ color: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981' }}
@@ -873,7 +847,7 @@ export function App() {
                             <span>{formatNum(stats.evMetrics.totalKwh, 1)} kWh</span>
                           </div>
                           <div className="cost-detail-row">
-                            <span>Getankt gesamt</span>
+                            <span>Ladekosten gesamt</span>
                             <span>{formatCur(stats.evMetrics.totalCost)}</span>
                           </div>
                         </div>
@@ -1897,7 +1871,7 @@ export function App() {
           onClick={() => setActiveTab('fuel')}
         >
           <div className="mobile-tab-center-btn">
-            <ChevronUp size={22} color="#0f172a" />
+            <Fuel size={21} color="#0f172a" />
           </div>
           <span>Tanken</span>
         </div>
