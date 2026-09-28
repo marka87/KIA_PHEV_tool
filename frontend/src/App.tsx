@@ -10,23 +10,20 @@ import {
   RefreshCw,
   Trash2,
   CheckCircle2,
-  Wifi,
-  WifiOff,
   Database,
   Calculator,
   Lock,
   Unlock,
   MapPin,
   AlertTriangle,
-  ShieldCheck,
-  Thermometer,
   Car,
   ExternalLink,
   ChevronDown,
   ChevronUp,
   Power,
   Radio,
-  KeyRound,
+  Battery,
+  BatteryCharging,
 } from 'lucide-react';
 import {
   fetchDashboardStats,
@@ -102,7 +99,6 @@ export function App() {
   const [simEvPriceInput, setSimEvPriceInput] = useState('0,28');
   const [simFuelPriceInput, setSimFuelPriceInput] = useState('1,65');
   const [showSimulator, setShowSimulator] = useState(false);
-  const [showRemoteControls, setShowRemoteControls] = useState(true);
 
   // Kia Connect integration state
   const [kiaStatus, setKiaStatus] = useState<KiaStatus | null>(null);
@@ -491,13 +487,10 @@ export function App() {
       <header className="app-header">
         <div className="header-content">
           <div className="brand">
-            <img src="/icon.svg" alt="PHEV" className="brand-icon" />
-            <div className="dashboard-content">
-              <span>PHEV Tracker</span>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>
-                {stats?.vehicle.name || 'Kia Ceed SW PHEV'}
-              </div>
+            <div className="brand-icon-box">
+              <Car size={18} />
             </div>
+            <span>PHEV Tracker</span>
           </div>
 
           {/* Desktop Nav */}
@@ -518,19 +511,19 @@ export function App() {
               <History size={18} /> Verlauf
             </button>
             <button className={`nav-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
-              <Settings size={18} /> Tarife & Backup
+              <Settings size={18} /> Setup
             </button>
           </nav>
 
           {/* Connection / Sync indicator */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {isOnline ? (
-              <span className="badge badge-online" title="Verbunden mit Server">
-                <Wifi size={13} /> Online
+              <span className="badge-online-pill" title="Verbunden mit Server">
+                <span className="dot" /> Online
               </span>
             ) : (
-              <span className="badge badge-offline" title="Offline-Modus: Daten werden lokal gespeichert">
-                <WifiOff size={13} /> Offline
+              <span className="badge-offline-pill" title="Offline-Modus: Daten werden lokal gespeichert">
+                <span className="dot" /> Offline
               </span>
             )}
             {pendingActions.length > 0 && (
@@ -568,655 +561,500 @@ export function App() {
           {/* ========================================================================= */}
           {/* TAB: DASHBOARD */}
           {/* ========================================================================= */}
-          {activeTab === 'dashboard' && (
-          <div>
-            {/* Break-Even Highlight Banner */}
-            {stats && (
-              <div className="card kpi-break-even savings-card" style={{ marginBottom: '20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
-                  <div>
-                    <span className="badge" style={{ backgroundColor: 'rgba(56, 189, 248, 0.25)', color: '#38bdf8', marginBottom: '6px' }}>
-                      Spar-Status
-                    </span>
-                    <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: '4px 0' }}>
-                      {stats.breakEven.isEvCheaper ? 'Elektrisch fahren ist günstiger' : 'Benzinbetrieb ist aktuell günstiger'}
-                    </h2>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                      Break-Even-Strompreis:{' '}
-                      <strong style={{ color: '#38bdf8', fontSize: '1.05rem' }}>
-                        {formatNum(stats.breakEven.breakEvenElectricityPricePerKwh, 3)} €/kWh
-                      </strong>{' '}
-                      (bis zu diesem Tarif spart Strom gegenüber Benzin).
-                    </p>
+          {activeTab === 'dashboard' && (() => {
+            const snap = stats?.latestSnapshot;
+            const parseJsonSafe = <T,>(str?: string | null, fallback: T = {} as T): T => {
+              if (!str) return fallback;
+              try {
+                return JSON.parse(str);
+              } catch {
+                return fallback;
+              }
+            };
+
+            const doors = parseJsonSafe<Record<string, boolean>>(snap?.doors_open_json, {});
+            const windows = parseJsonSafe<Record<string, boolean>>(snap?.windows_open_json, {});
+
+            const openDoorsList: string[] = [];
+            if (doors.front_left) openDoorsList.push('Fahrertür');
+            if (doors.front_right) openDoorsList.push('Beifahrertür');
+            if (doors.back_left) openDoorsList.push('Tür hinten links');
+            if (doors.back_right) openDoorsList.push('Tür hinten rechts');
+            if (doors.trunk) openDoorsList.push('Kofferraum');
+            if (doors.hood) openDoorsList.push('Motorhaube');
+
+            const openWindowsList: string[] = [];
+            if (windows.front_left) openWindowsList.push('Vorne links');
+            if (windows.front_right) openWindowsList.push('Vorne rechts');
+            if (windows.back_left) openWindowsList.push('Hinten links');
+            if (windows.back_right) openWindowsList.push('Hinten rechts');
+
+            const hasOpenItems = openDoorsList.length > 0 || openWindowsList.length > 0;
+            const hasWarnings = Boolean(snap?.tire_pressure_warning || snap?.washer_fluid_warning || snap?.smart_key_warning);
+
+            const is12vLow = snap?.car_12v_percent !== null && snap?.car_12v_percent !== undefined && snap.car_12v_percent < 50;
+            const is12vMed = snap?.car_12v_percent !== null && snap?.car_12v_percent !== undefined && snap.car_12v_percent >= 50 && snap.car_12v_percent < 65;
+
+            return (
+              <div className="dashboard-wrapper">
+                {/* 1. BEDIENUNG CARD */}
+                <div className="control-card">
+                  <div className="control-card-title">BEDIENUNG</div>
+                  <div className="control-btn-grid">
+                    <button
+                      type="button"
+                      className="control-btn-lock"
+                      disabled={isRemoteLoading}
+                      onClick={() => {
+                        if (!kiaStatus?.configured) {
+                          showToast('Kia Connect Zugangsdaten bitte zuerst in Setup hinterlegen', 'warn');
+                          return;
+                        }
+                        handleRemoteCommand({ action: 'lock' });
+                      }}
+                      title="Auto verriegeln"
+                    >
+                      <Lock size={24} />
+                      <span>Verriegeln</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="control-btn-unlock"
+                      disabled={isRemoteLoading}
+                      onClick={() => {
+                        if (!kiaStatus?.configured) {
+                          showToast('Kia Connect Zugangsdaten bitte zuerst in Setup hinterlegen', 'warn');
+                          return;
+                        }
+                        if (window.confirm('Möchtest du das Fahrzeug wirklich aus der Ferne entriegeln?')) {
+                          handleRemoteCommand({ action: 'unlock' });
+                        }
+                      }}
+                      title="Auto entriegeln"
+                    >
+                      <Unlock size={24} />
+                      <span>Entriegeln</span>
+                    </button>
                   </div>
 
-                  <div style={{ textAlign: 'right' }}>
-                    <div className="kpi-value" style={{ color: stats.breakEven.isEvCheaper ? 'var(--ev-color)' : 'var(--fuel-color)' }}>
-                      {stats.breakEven.isEvCheaper ? '+' : ''}{formatCur(stats.breakEven.savingsPer100Km)}
-                    </div>
-                    <div className="kpi-sub">
-                      {stats.breakEven.isEvCheaper ? 'Ersparnis pro 100 km' : 'Mehrkosten Strom pro 100 km'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Core KPI Cards: EV vs Benzin */}
-            <div className="grid-2 cost-comparison">
-              {/* EV Box */}
-              <div className="card kpi-box kpi-ev">
-                <div className="card-title" style={{ color: 'var(--ev-color)' }}>
-                  <Zap size={18} /> Elektrobetrieb (EV)
-                </div>
-                <div className="kpi-value" style={{ color: 'var(--ev-color)' }}>
-                  {stats ? formatKmCur(stats.evMetrics.costPerKm) : '...'}
-                </div>
-                <div className="kpi-sub" style={{ fontSize: '1rem', color: 'var(--text-main)', marginTop: '2px' }}>
-                  <strong>{stats ? formatCur(stats.evMetrics.costPer100Km) : '...'}</strong> / 100 km
-                </div>
-
-                <div className="metric-grid" style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(52, 211, 153, 0.2)', fontSize: '0.85rem' }}>
-                  <div className="metric-row">
-                    <span>Realverbrauch:</span>
-                    <strong>{stats ? formatNum(stats.evMetrics.kwhPer100Km, 1) : '...'} kWh/100km</strong>
-                  </div>
-                  <div className="metric-row">
-                    <span>Erfasste EV-Distanz:</span>
-                    <span>{stats ? formatNum(stats.evMetrics.totalEvKm, 0) : '0'} km</span>
-                  </div>
-                  <div className="metric-row">
-                    <span>Geladene Energie:</span>
-                    <span>{stats ? formatNum(stats.evMetrics.totalKwh, 1) : '0'} kWh ({stats ? formatCur(stats.evMetrics.totalCost) : '0 €'})</span>
-                  </div>
-                  {stats?.evMetrics.isEstimate && (
-                    <div style={{ color: '#fbbf24', fontSize: '0.75rem', marginTop: '6px' }}>
-                      * Richtwert (noch keine EV-Kilometer erfasst)
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Fuel Box */}
-              <div className="card kpi-box kpi-fuel">
-                <div className="card-title" style={{ color: 'var(--fuel-color)' }}>
-                  <Fuel size={18} /> Verbrennerbetrieb (Benzin)
-                </div>
-                <div className="kpi-value" style={{ color: 'var(--fuel-color)' }}>
-                  {stats ? formatKmCur(stats.fuelMetrics.costPerKm) : '...'}
-                </div>
-                <div className="kpi-sub" style={{ fontSize: '1rem', color: 'var(--text-main)', marginTop: '2px' }}>
-                  <strong>{stats ? formatCur(stats.fuelMetrics.costPer100Km) : '...'}</strong> / 100 km
-                </div>
-
-                <div className="metric-grid" style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(251, 191, 36, 0.2)', fontSize: '0.85rem' }}>
-                  <div className="metric-row">
-                    <span>Realverbrauch:</span>
-                    <strong>{stats ? formatNum(stats.fuelMetrics.literPer100Km, 1) : '...'} L/100km</strong>
-                  </div>
-                  <div className="metric-row">
-                    <span>Erfasste Benzin-Distanz:</span>
-                    <span>{stats ? formatNum(stats.fuelMetrics.totalFuelKm, 0) : '0'} km</span>
-                  </div>
-                  <div className="metric-row">
-                    <span>Getankt gesamt:</span>
-                    <span>{stats ? formatNum(stats.fuelMetrics.totalLiter, 1) : '0'} L ({stats ? formatCur(stats.fuelMetrics.totalCost) : '0 €'})</span>
-                  </div>
-                  {stats?.fuelMetrics.isEstimate && (
-                    <div style={{ color: '#fbbf24', fontSize: '0.75rem', marginTop: '6px' }}>
-                      * Richtwert (noch keine Benzin-Kilometer erfasst)
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Interactive Live Break-Even Calculator */}
-            <details
-              className="card dashboard-details break-even-details"
-              style={{ marginTop: '8px' }}
-              open={showSimulator}
-              onToggle={(event) => setShowSimulator(event.currentTarget.open)}
-            >
-              <summary>
-                <TrendingDown size={18} /> Interaktiver Break-Even Rechner
-                <span className="details-hint">Lohnt sich Laden an Säule X?</span>
-              </summary>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                Verändere die Strom- und Spritpreise, um sofort zu sehen, ob sich das Laden an einer öffentlichen Station (z. B. VKW, EnBW, Ionity) gegenüber reinem Benzinbetrieb rechnet:
-              </p>
-
-              <div className="grid-2" style={{ marginBottom: '16px' }}>
-                <div>
-                  <label htmlFor="sim-ev-price">Strompreis (€/kWh)</label>
-                  <input
-                    id="sim-ev-price"
-                    className="price-input"
-                    type="text"
-                    inputMode="decimal"
-                    value={simEvPriceInput}
-                    onChange={(e) => setSimEvPriceInput(e.target.value)}
-                    onBlur={() => saveSimulatorPrices(simEvPriceInput, simFuelPriceInput)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') e.currentTarget.blur();
+                  <button
+                    type="button"
+                    className="control-btn-charge"
+                    disabled={isRemoteLoading}
+                    onClick={() => {
+                      if (!kiaStatus?.configured) {
+                        showToast('Kia Connect Zugangsdaten bitte zuerst in Setup hinterlegen', 'warn');
+                        return;
+                      }
+                      if (snap?.is_charging) {
+                        handleRemoteCommand({ action: 'stop_charge' });
+                      } else {
+                        handleRemoteCommand({ action: 'start_charge' });
+                      }
                     }}
-                    aria-label="Strompreis pro Kilowattstunde"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="sim-fuel-price">Spritpreis (€/L)</label>
-                  <input
-                    id="sim-fuel-price"
-                    className="price-input"
-                    type="text"
-                    inputMode="decimal"
-                    value={simFuelPriceInput}
-                    onChange={(e) => setSimFuelPriceInput(e.target.value)}
-                    onBlur={() => saveSimulatorPrices(simEvPriceInput, simFuelPriceInput)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') e.currentTarget.blur();
+                    style={{
+                      color: snap?.is_charging ? '#f59e0b' : '#94a3b8',
+                      borderColor: snap?.is_charging ? 'rgba(245, 158, 11, 0.4)' : undefined,
                     }}
-                    aria-label="Spritpreis pro Liter"
-                  />
-                </div>
-              </div>
-
-              {/* Simulation Result */}
-              <div
-                style={{
-                  backgroundColor: 'var(--bg-input)',
-                  padding: '14px',
-                  borderRadius: '8px',
-                  border: isSimEvCheaper ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.4)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                  gap: '12px',
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.95rem', color: isSimEvCheaper ? 'var(--ev-color)' : '#f87171' }}>
-                    {isSimEvCheaper ? '✓ Ja, Laden ist günstiger!' : '✗ Nein, Benzinbetrieb ist günstiger!'}
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                    Strom: {formatCur(simulatedEvCostPer100Km)} / 100km &nbsp;|&nbsp; Benzin: {formatCur(simulatedFuelCostPer100Km)} / 100km
-                  </div>
-                </div>
-
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: isSimEvCheaper ? 'var(--ev-color)' : '#f87171' }}>
-                    {isSimEvCheaper ? `-${formatCur(simulatedSavings)} Ersparnis` : `+${formatCur(-simulatedSavings)} teurer`}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>je 100 km Fahrt</div>
-                </div>
-              </div>
-            </details>
-
-            {/* Latest Snapshot / Extended Vehicle Status & Monitor */}
-            {stats?.latestSnapshot && (() => {
-              const snap = stats.latestSnapshot;
-              const parseJsonSafe = <T,>(str?: string | null, fallback: T = {} as T): T => {
-                if (!str) return fallback;
-                try {
-                  return JSON.parse(str);
-                } catch {
-                  return fallback;
-                }
-              };
-
-              const doors = parseJsonSafe<Record<string, boolean>>(snap.doors_open_json, {});
-              const windows = parseJsonSafe<Record<string, boolean>>(snap.windows_open_json, {});
-              const climate = parseJsonSafe<{
-                is_on?: boolean;
-                target_temp?: number;
-                defrost?: boolean;
-                back_window_heater?: boolean;
-                steering_wheel_heater?: boolean;
-                outside_temp?: number;
-              }>(snap.climate_status_json, {});
-
-              const openDoorsList: string[] = [];
-              if (doors.front_left) openDoorsList.push('Fahrertür');
-              if (doors.front_right) openDoorsList.push('Beifahrertür');
-              if (doors.back_left) openDoorsList.push('Tür hinten links');
-              if (doors.back_right) openDoorsList.push('Tür hinten rechts');
-              if (doors.trunk) openDoorsList.push('Kofferraum');
-              if (doors.hood) openDoorsList.push('Motorhaube');
-
-              const openWindowsList: string[] = [];
-              if (windows.front_left) openWindowsList.push('Vorne links');
-              if (windows.front_right) openWindowsList.push('Vorne rechts');
-              if (windows.back_left) openWindowsList.push('Hinten links');
-              if (windows.back_right) openWindowsList.push('Hinten rechts');
-
-              const hasOpenItems = openDoorsList.length > 0 || openWindowsList.length > 0;
-              const hasWarnings = Boolean(snap.tire_pressure_warning || snap.washer_fluid_warning || snap.smart_key_warning);
-
-              const is12vLow = snap.car_12v_percent !== null && snap.car_12v_percent !== undefined && snap.car_12v_percent < 50;
-              const is12vMed = snap.car_12v_percent !== null && snap.car_12v_percent !== undefined && snap.car_12v_percent >= 50 && snap.car_12v_percent < 65;
-
-              return (
-                <div className="card vehicle-card" style={{ marginTop: '16px' }}>
-                  {/* Card Header */}
-                  <div className="vehicle-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
-                    <div className="card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Car size={20} style={{ color: 'var(--accent)' }} />
-                      <span>Fahrzeugstatus</span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        Stand: {formatDate(snap.zeitpunkt)}
-                      </span>
-                      {kiaStatus?.configured && (
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleKiaSync(false)}
-                            disabled={isKiaSyncing}
-                            className="btn-secondary ghost-button"
-                            title="Liest den schnellen Cloud-Zustand (1-2 Sek., batterieschonend)"
-                          >
-                            <RefreshCw size={11} className={isKiaSyncing ? 'spin' : ''} />
-                            Schnell-Sync
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleKiaSync(true)}
-                            disabled={isKiaSyncing}
-                            className="btn-secondary ghost-button"
-                            title="Weckt das Auto per Mobilfunk auf (ca. 20-30 Sek.) für frische Live-Sensordaten"
-                          >
-                            <Radio size={11} className={isKiaSyncing ? 'spin' : ''} />
-                            Live-Sync
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Status Badges Row */}
-                  <div className="vehicle-badges" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
-                    {/* Ladekabel & Ladezustand */}
-                    {snap.is_charging ? (
-                      <span
-                        className="badge"
-                        style={{
-                          backgroundColor: 'rgba(16, 185, 129, 0.25)',
-                          color: '#10b981',
-                          border: '1px solid rgba(16, 185, 129, 0.4)',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          fontWeight: 600,
-                        }}
-                      >
-                        <Zap size={13} className="spin-slow" /> Lädt aktiv
-                      </span>
-                    ) : snap.is_plugged_in ? (
-                      <span
-                        className="badge"
-                        style={{
-                          backgroundColor: 'rgba(56, 189, 248, 0.18)',
-                          color: '#38bdf8',
-                          border: '1px solid rgba(56, 189, 248, 0.3)',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        <Power size={13} /> Angesteckt
-                      </span>
+                  >
+                    {isRemoteLoading && remoteActionActive?.includes('charge') ? (
+                      <RefreshCw size={15} className="spin" />
                     ) : (
-                      <span
-                        className="badge"
-                        style={{
-                          backgroundColor: 'rgba(148, 163, 184, 0.12)',
-                          color: 'var(--text-muted)',
-                          border: '1px solid var(--border-color)',
-                        }}
-                      >
-                        Nicht angesteckt
-                      </span>
+                      <Power size={15} />
                     )}
+                    <span>{snap?.is_charging ? 'Laden Stoppen' : 'Laden Starten'}</span>
+                  </button>
+                </div>
 
-                    {/* Vorklimatisierung */}
-                    {climate.is_on && (
-                      <span
-                        className="badge"
-                        style={{
-                          backgroundColor: 'rgba(56, 189, 248, 0.25)',
-                          color: '#38bdf8',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          fontWeight: 600,
+                {/* 2. FAHRZEUGSTATUS CARD */}
+                <div className="status-card">
+                  <div className="status-card-header">
+                    <div>
+                      <div className="status-card-title">FAHRZEUGSTATUS</div>
+                      <div className="status-card-subtitle">
+                        Stand: {formatDate(snap?.zeitpunkt || new Date().toISOString())}
+                      </div>
+                    </div>
+
+                    <div className="status-sync-btns">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!kiaStatus?.configured) {
+                            showToast('Kia Connect noch nicht eingerichtet in Setup', 'warn');
+                            return;
+                          }
+                          handleKiaSync(false);
                         }}
+                        disabled={isKiaSyncing}
+                        className="status-sync-btn"
+                        title="Schneller Cloud-Sync"
                       >
-                        <Thermometer size={13} /> Standklima läuft ({climate.target_temp || 21}°C)
-                      </span>
-                    )}
-                  </div>
-
-                  {/* 4 Main Status KPI Cards */}
-                  <div className="vehicle-metrics grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '14px' }}>
-                    {/* Odometer */}
-                    <div style={{ padding: '12px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Tachostand</div>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>{formatNum(snap.odometer_km, 0)} km</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Gesamtfahrleistung</div>
-                    </div>
-
-                    {/* EV Battery (HV) */}
-                    <div style={{ padding: '12px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Hochvolt-Akku (EV)</div>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--ev-color)' }}>
-                        {snap.soc_percent !== null && snap.soc_percent !== undefined ? `${formatNum(snap.soc_percent, 0)}%` : '-'}
-                        {snap.ev_range_km ? ` (${formatNum(snap.ev_range_km, 0)} km)` : ''}
-                      </div>
-                      {/* Battery mini progress bar */}
-                      {snap.soc_percent !== null && snap.soc_percent !== undefined && (
-                        <div className="battery-progress">
-                          <div style={{ width: `${Math.min(100, Math.max(0, snap.soc_percent))}%`, backgroundColor: 'var(--ev-color)' }} />
-                        </div>
-                      )}
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        {snap.charge_remaining_min ? `⏱️ ca. ${snap.charge_remaining_min} Min. bis voll` : 'Kapazität: 8,9 kWh'}
-                      </div>
-                    </div>
-
-                    {/* Fuel Range */}
-                    <div style={{ padding: '12px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Benzin-Tank</div>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--fuel-color)' }}>
-                        {snap.fuel_range_km ? `${formatNum(snap.fuel_range_km, 0)} km` : '-'}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-                        Reichweite gesamt: {formatNum((snap.ev_range_km || 0) + (snap.fuel_range_km || 0), 0)} km
-                      </div>
-                    </div>
-
-                    {/* 12V Starter Battery */}
-                    <div style={{ padding: '12px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>12V Starter-Akku</div>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 700, color: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981' }}>
-                        {snap.car_12v_percent !== null && snap.car_12v_percent !== undefined ? `${snap.car_12v_percent}%` : '-'}
-                      </div>
-                      {/* 12V mini progress bar */}
-                      {snap.car_12v_percent !== null && snap.car_12v_percent !== undefined && (
-                        <div className="battery-progress">
-                          <div
-                            style={{
-                              width: `${Math.min(100, Math.max(0, snap.car_12v_percent))}%`,
-                              backgroundColor: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981',
-                            }}
-                          />
-                        </div>
-                      )}
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        {is12vLow ? '⚠️ Bitte bald fahren/laden!' : is12vMed ? 'Normale Entladung' : 'Optimaler Zustand'}
-                      </div>
+                        <RefreshCw size={12} className={isKiaSyncing ? 'spin' : ''} />
+                        Schnell Sync
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!kiaStatus?.configured) {
+                            showToast('Kia Connect noch nicht eingerichtet in Setup', 'warn');
+                            return;
+                          }
+                          handleKiaSync(true);
+                        }}
+                        disabled={isKiaSyncing}
+                        className="status-sync-btn"
+                        title="Live Aufweck-Sync per Mobilfunk"
+                      >
+                        <Radio size={12} className={isKiaSyncing ? 'spin' : ''} />
+                        Live Sync
+                      </button>
                     </div>
                   </div>
 
-                  {/* Security & Doors / Windows Status Bar */}
-                  {snap.doors_open_json && (
-                    <div className="vehicle-status-line vehicle-doors">
-                      {snap.is_locked !== null && snap.is_locked !== undefined && (
-                        <>
-                          {snap.is_locked ? <KeyRound size={15} color="var(--ev-color)" /> : <KeyRound size={15} color="var(--danger)" />}
-                          <strong className={`lock-status ${snap.is_locked ? 'locked' : 'unlocked'}`}>
-                            {snap.is_locked ? 'Verriegelt' : 'Nicht verriegelt'}
-                          </strong>
-                          <span style={{ color: 'var(--text-muted)' }}>·</span>
-                        </>
-                      )}
-                      {hasOpenItems ? (
+                  <div className="status-grid">
+                    {/* Left Column: Tacho & HV-Akku */}
+                    <div className="status-col">
+                      <Gauge size={22} style={{ color: '#cbd5e1' }} />
+                      <div className="status-metric-label">TACHO</div>
+                      <div className="status-metric-val">
+                        {formatNum(snap?.odometer_km || 0, 0)} km
+                      </div>
+
+                      <div className="status-divider-icon">
+                        <svg width="40" height="18" viewBox="0 0 40 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#64748b' }}>
+                          <rect x="2" y="2" width="28" height="6" rx="2" />
+                          <line x1="30" y1="4" x2="32" y2="4" />
+                          <line x1="30" y1="6" x2="32" y2="6" />
+                          <path d="M4 12h20c1.5 0 3 1 4 2.5v1H1v-1c1-1.5 2-2.5 3-2.5z" />
+                          <circle cx="6" cy="15.5" r="1.5" />
+                          <circle cx="24" cy="15.5" r="1.5" />
+                        </svg>
+                      </div>
+
+                      <div className="status-battery-label">
+                        <BatteryCharging size={18} style={{ color: '#22c55e' }} />
+                        <span>HV-AKKU</span>
+                      </div>
+                      <div className="status-battery-val" style={{ color: '#22c55e' }}>
+                        {snap?.soc_percent !== null && snap?.soc_percent !== undefined ? `${formatNum(snap.soc_percent, 0)}%` : '-%'}
+                        {snap?.ev_range_km ? ` (${formatNum(snap.ev_range_km, 0)} km)` : ''}
+                      </div>
+
+                      <div className="status-progress-track">
                         <div
-                          className="vehicle-warnings"
+                          className="status-progress-fill"
                           style={{
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: '10px',
-                            fontSize: '0.88rem',
+                            width: `${Math.min(100, Math.max(0, snap?.soc_percent || 0))}%`,
+                            backgroundColor: '#22c55e',
                           }}
-                        >
-                          <AlertTriangle size={18} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
-                          <div>
-                            <strong style={{ color: '#ef4444' }}>Achtung: Geöffnete Komponenten am Fahrzeug!</strong>
-                            {openDoorsList.length > 0 && (
-                              <div style={{ marginTop: '2px' }}>
-                                Türen/Klappen: <span style={{ fontWeight: 600 }}>{openDoorsList.join(', ')}</span>
-                              </div>
-                            )}
-                            {openWindowsList.length > 0 && (
-                              <div style={{ marginTop: '2px' }}>
-                                Fenster: <span style={{ fontWeight: 600 }}>{openWindowsList.join(', ')}</span>
-                              </div>
-                            )}
+                        />
+                      </div>
+
+                      <div className="status-subtext">
+                        {snap?.charge_remaining_min
+                          ? `ca. ${snap.charge_remaining_min} Min. bis voll`
+                          : 'Optimaler Zustand'}
+                      </div>
+                    </div>
+
+                    {/* Right Column: Fuel Range & 12V-Akku */}
+                    <div className="status-col">
+                      <Fuel size={22} style={{ color: '#fbbf24' }} />
+                      <div className="status-metric-label">REICHWEITE (BENZIN)</div>
+                      <div className="status-metric-val">
+                        {snap?.fuel_range_km ? `${formatNum(snap.fuel_range_km, 0)} km` : '- km'}
+                      </div>
+
+                      <div className="status-divider-icon">
+                        <Fuel size={20} style={{ color: '#fbbf24' }} />
+                      </div>
+
+                      <div className="status-battery-label">
+                        <Battery size={18} style={{ color: '#fbbf24' }} />
+                        <span>12V-AKKU</span>
+                      </div>
+                      <div
+                        className="status-battery-val"
+                        style={{ color: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981' }}
+                      >
+                        {snap?.car_12v_percent !== null && snap?.car_12v_percent !== undefined ? `${snap.car_12v_percent}%` : '-%'}
+                      </div>
+
+                      <div className="status-progress-track">
+                        <div
+                          className="status-progress-fill"
+                          style={{
+                            width: `${Math.min(100, Math.max(0, snap?.car_12v_percent || 0))}%`,
+                            backgroundColor: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981',
+                          }}
+                        />
+                      </div>
+
+                      <div className="status-subtext">
+                        {is12vLow ? '⚠️ Bitte bald laden' : is12vMed ? 'Normale Entladung' : 'Optimaler Zustand'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Warnings or open items banner if any */}
+                  {hasOpenItems && (
+                    <div className="status-warning-banner">
+                      <AlertTriangle size={15} style={{ color: '#ef4444', flexShrink: 0 }} />
+                      <div>
+                        Geöffnet: {openDoorsList.concat(openWindowsList).join(', ')}
+                      </div>
+                    </div>
+                  )}
+                  {hasWarnings && (
+                    <div className="status-warning-banner">
+                      <AlertTriangle size={15} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                      <div>
+                        Warnung:{' '}
+                        {[
+                          snap?.tire_pressure_warning && 'Reifendruck',
+                          snap?.washer_fluid_warning && 'Scheibenwaschwasser',
+                          snap?.smart_key_warning && 'Schlüsselbatterie',
+                        ]
+                          .filter(Boolean)
+                          .join(', ')}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. SPAR-STATUS CARD */}
+                {stats && (
+                  <div className="savings-banner-card">
+                    <div className="savings-banner-title">Spar-Status</div>
+                    <div className={`savings-banner-box ${stats.breakEven.isEvCheaper ? '' : 'fuel-cheaper'}`}>
+                      <div className="savings-icon-box">
+                        <Zap size={20} />
+                      </div>
+                      <div>
+                        <div className="savings-title-text">
+                          {stats.breakEven.isEvCheaper ? 'AKTUELL SPAREND (Strom)' : 'AKTUELL SPAREND (Benzin)'}
+                        </div>
+                        <div className="savings-sub-text">
+                          Schwelle: {formatNum(stats.breakEven.breakEvenElectricityPricePerKwh, 3)} €/kWh |{' '}
+                          {stats.breakEven.isEvCheaper ? '+' : ''}
+                          {formatCur(stats.breakEven.savingsPer100Km)} / 100 km
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. KOSTEN-VERGLEICH CARD */}
+                {stats && (
+                  <div className="cost-card">
+                    <div className="cost-card-title">KOSTEN-VERGLEICH</div>
+                    <div className="cost-card-grid">
+                      {/* EV Column */}
+                      <div className="cost-col-ev">
+                        <div className="cost-col-header-ev">ELEKTROBETRIEB</div>
+                        <div className="cost-col-main-val-ev">{formatKmCur(stats.evMetrics.costPerKm)}</div>
+                        <div className="cost-col-sub-val">
+                          {formatCur(stats.evMetrics.costPer100Km)} / {formatNum(stats.evMetrics.kwhPer100Km, 1)} kWh/100 km
+                        </div>
+
+                        <div className="cost-details-list">
+                          <div className="cost-detail-row">
+                            <span>Realverbrauch</span>
+                            <strong>{formatNum(stats.evMetrics.kwhPer100Km, 1)} kWh/100 km</strong>
+                          </div>
+                          <div className="cost-detail-row">
+                            <span>Erfasste EV Distanz</span>
+                            <span>{formatNum(stats.evMetrics.totalEvKm, 0)} km</span>
+                          </div>
+                          <div className="cost-detail-row">
+                            <span>Geladene Energie</span>
+                            <span>{formatNum(stats.evMetrics.totalKwh, 1)} kWh</span>
+                          </div>
+                          <div className="cost-detail-row">
+                            <span>Getankt gesamt</span>
+                            <span>{formatCur(stats.evMetrics.totalCost)}</span>
                           </div>
                         </div>
-                      ) : (
-                        <>
-                          <ShieldCheck size={16} style={{ color: 'var(--ev-color)', flexShrink: 0 }} />
-                          <span style={{ color: 'var(--text-main)' }}>
-                            Alles geschlossen
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  )}
 
-                  {/* Warnings Banner if any */}
-                  {hasWarnings && (
+                        <button
+                          type="button"
+                          className="cost-btn-details-ev"
+                          onClick={() => setShowSimulator(!showSimulator)}
+                        >
+                          DETAILS
+                        </button>
+                      </div>
+
+                      {/* Fuel Column */}
+                      <div className="cost-col-fuel">
+                        <div className="cost-col-header-fuel">VERBRENNERBETRIEB</div>
+                        <div className="cost-col-main-val-fuel">{formatKmCur(stats.fuelMetrics.costPerKm)}</div>
+                        <div className="cost-col-sub-val">
+                          {formatCur(stats.fuelMetrics.costPer100Km)} / {formatNum(stats.fuelMetrics.literPer100Km, 1)} L/100 km
+                        </div>
+
+                        <div className="cost-details-list">
+                          <div className="cost-detail-row">
+                            <span>Realverbrauch</span>
+                            <strong>{formatNum(stats.fuelMetrics.literPer100Km, 1)} L/100 km</strong>
+                          </div>
+                          <div className="cost-detail-row">
+                            <span>Erfasste Benzin Distanz</span>
+                            <span>{formatNum(stats.fuelMetrics.totalFuelKm, 0)} km</span>
+                          </div>
+                          <div className="cost-detail-row">
+                            <span>Erfasste Distanz</span>
+                            <span>{formatNum((stats.evMetrics.totalEvKm || 0) + (stats.fuelMetrics.totalFuelKm || 0), 0)} gesamt</span>
+                          </div>
+                          <div className="cost-detail-row">
+                            <span>Getankt gesamt</span>
+                            <span>{formatCur(stats.fuelMetrics.totalCost)}</span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="cost-btn-details-fuel"
+                          onClick={() => setShowSimulator(!showSimulator)}
+                        >
+                          DETAILS
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Interactive Break-Even Simulator when toggled */}
+                    {showSimulator && (
+                      <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <strong style={{ fontSize: '0.88rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <TrendingDown size={16} /> Interaktiver Break-Even Rechner
+                          </strong>
+                          <button
+                            type="button"
+                            onClick={() => setShowSimulator(false)}
+                            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.8rem' }}
+                          >
+                            Schließen
+                          </button>
+                        </div>
+                        <div className="grid-2" style={{ marginBottom: '12px' }}>
+                          <div>
+                            <label htmlFor="sim-ev-price" style={{ fontSize: '0.75rem' }}>Strompreis (€/kWh)</label>
+                            <input
+                              id="sim-ev-price"
+                              className="price-input"
+                              type="text"
+                              inputMode="decimal"
+                              value={simEvPriceInput}
+                              onChange={(e) => setSimEvPriceInput(e.target.value)}
+                              onBlur={() => saveSimulatorPrices(simEvPriceInput, simFuelPriceInput)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') e.currentTarget.blur();
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="sim-fuel-price" style={{ fontSize: '0.75rem' }}>Spritpreis (€/L)</label>
+                            <input
+                              id="sim-fuel-price"
+                              className="price-input"
+                              type="text"
+                              inputMode="decimal"
+                              value={simFuelPriceInput}
+                              onChange={(e) => setSimFuelPriceInput(e.target.value)}
+                              onBlur={() => saveSimulatorPrices(simEvPriceInput, simFuelPriceInput)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') e.currentTarget.blur();
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            backgroundColor: 'var(--bg-input)',
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            border: isSimEvCheaper ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.4)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '8px',
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.88rem', color: isSimEvCheaper ? 'var(--ev-color)' : '#f87171' }}>
+                              {isSimEvCheaper ? '✓ Ja, Laden ist günstiger!' : '✗ Nein, Benzinbetrieb ist günstiger!'}
+                            </div>
+                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                              Strom: {formatCur(simulatedEvCostPer100Km)} / 100km &nbsp;|&nbsp; Benzin: {formatCur(simulatedFuelCostPer100Km)} / 100km
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '1.05rem', fontWeight: 800, color: isSimEvCheaper ? 'var(--ev-color)' : '#f87171' }}>
+                              {isSimEvCheaper ? `-${formatCur(simulatedSavings)} Ersparnis` : `+${formatCur(-simulatedSavings)} teurer`}
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>je 100 km Fahrt</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 5. GEPARKTE POSITION CARD */}
+                {snap?.location_lat && snap?.location_lon && (
+                  <div className="park-card">
                     <div
-                      style={{
-                        padding: '10px 14px',
-                        borderRadius: '8px',
-                        backgroundColor: 'rgba(245, 158, 11, 0.12)',
-                        border: '1px solid rgba(245, 158, 11, 0.3)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        fontSize: '0.85rem',
-                        marginBottom: '14px',
-                      }}
+                      className="park-card-header"
+                      onClick={() => setShowVehicleMap(!showVehicleMap)}
                     >
-                      <AlertTriangle size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                      <div>
-                        {Boolean(snap.tire_pressure_warning) && <div>⚠️ Reifendruck überprüfen!</div>}
-                        {Boolean(snap.washer_fluid_warning) && <div>⚠️ Scheibenwaschwasser auffüllen!</div>}
-                        {Boolean(snap.smart_key_warning) && <div>⚠️ Schlüsselbatterie schwach!</div>}
+                      <div className="park-card-title">
+                        <MapPin size={16} style={{ color: '#94a3b8' }} />
+                        <span>
+                          GEPARKTE POS: {snap.location_lat.toFixed(5)}, {snap.location_lon.toFixed(5)}
+                        </span>
                       </div>
+                      {showVehicleMap ? <ChevronUp size={16} color="#94a3b8" /> : <ChevronDown size={16} color="#94a3b8" />}
                     </div>
-                  )}
 
-                  {/* GPS Parkposition & Map Preview */}
-                  {snap.location_lat && snap.location_lon && (
-                    <div className="vehicle-location" style={{ paddingTop: '10px', borderTop: '1px solid var(--border-color)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.88rem' }}>
-                          <MapPin size={16} style={{ color: 'var(--accent)' }} />
-                          <span>
-                            Parkposition:{' '}
-                            <strong style={{ fontFamily: 'monospace' }}>
-                              {snap.location_lat.toFixed(5)}, {snap.location_lon.toFixed(5)}
-                            </strong>
-                          </span>
-                        </div>
+                    <div className="park-actions">
+                      <button
+                        type="button"
+                        className="park-btn"
+                        onClick={() => setShowVehicleMap(!showVehicleMap)}
+                      >
+                        <span>✣</span> {showVehicleMap ? 'Karte verbergen' : 'Karte anzeigen'}
+                      </button>
 
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
-                            type="button"
-                            onClick={() => setShowVehicleMap(!showVehicleMap)}
-                            className="btn-secondary"
-                            style={{ padding: '4px 10px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                          >
-                            {showVehicleMap ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                            {showVehicleMap ? 'Karte verbergen' : 'Karte anzeigen'}
-                          </button>
-
-                          <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${snap.location_lat},${snap.location_lon}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn-primary"
-                            style={{
-                              padding: '4px 10px',
-                              fontSize: '0.78rem',
-                              textDecoration: 'none',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                            }}
-                          >
-                            <ExternalLink size={13} /> Navigation / Maps
-                          </a>
-                        </div>
-                      </div>
-
-                      {showVehicleMap && (
-                        <div style={{ marginTop: '10px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                          <iframe
-                            title="Fahrzeug Parkposition"
-                            width="100%"
-                            height="220"
-                            style={{ border: 0, display: 'block' }}
-                            src={`https://www.openstreetmap.org/export/embed.html?bbox=${snap.location_lon - 0.005}%2C${snap.location_lat - 0.003}%2C${snap.location_lon + 0.005}%2C${snap.location_lat + 0.003}&layer=mapnik&marker=${snap.location_lat}%2C${snap.location_lon}`}
-                          />
-                        </div>
-                      )}
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${snap.location_lat},${snap.location_lon}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="park-btn"
+                      >
+                        <ExternalLink size={13} /> In Maps öffnen
+                      </a>
                     </div>
-                  )}
 
-                  {/* Remote Control Bar */}
-                  {kiaStatus?.configured && (
-                    <details
-                      className="dashboard-details remote-details"
-                      style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border-color)' }}
-                      open={showRemoteControls}
-                      onToggle={(event) => setShowRemoteControls(event.currentTarget.open)}
-                    >
-                      <summary>
-                          <Radio size={16} style={{ color: 'var(--accent)' }} />
-                          Bedienung
-                          <span className="details-hint">{snap.is_locked ? 'Verriegelt' : 'Nicht verriegelt'}</span>
-                        {isRemoteLoading && (
-                          <span style={{ fontSize: '0.8rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <RefreshCw size={12} className="spin" /> Befehl '{remoteActionActive}' wird ausgeführt...
-                          </span>
-                        )}
-                      </summary>
-
-                      {/* Remote Buttons Grid */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
-                        {/* Lock Button */}
-                        <button
-                          type="button"
-                          disabled={isRemoteLoading}
-                          onClick={() => handleRemoteCommand({ action: 'lock' })}
-                          className="btn-secondary"
-                          style={{
-                            padding: '8px 10px',
-                            fontSize: '0.82rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '6px',
-                            fontWeight: 600,
-                            background: 'rgba(16, 185, 129, 0.1)',
-                            borderColor: 'rgba(16, 185, 129, 0.3)',
-                            color: '#10b981',
-                          }}
-                          title="Auto verriegeln"
-                        >
-                          <Lock size={15} /> Verriegeln
-                        </button>
-
-                        {/* Unlock Button */}
-                        <button
-                          type="button"
-                          disabled={isRemoteLoading}
-                          onClick={() => {
-                            if (window.confirm('Möchtest du das Fahrzeug wirklich aus der Ferne entriegeln?')) {
-                              handleRemoteCommand({ action: 'unlock' });
-                            }
-                          }}
-                          className="btn-secondary"
-                          style={{
-                            padding: '8px 10px',
-                            fontSize: '0.82rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '6px',
-                            fontWeight: 600,
-                            background: 'rgba(239, 68, 68, 0.1)',
-                            borderColor: 'rgba(239, 68, 68, 0.3)',
-                            color: '#ef4444',
-                          }}
-                          title="Auto aufschließen"
-                        >
-                          <Unlock size={15} /> Entriegeln
-                        </button>
-
-                        {/* Charging Start / Stop */}
-                        {snap.is_charging ? (
-                          <button
-                            type="button"
-                            disabled={isRemoteLoading}
-                            onClick={() => handleRemoteCommand({ action: 'stop_charge' })}
-                            className="btn-secondary"
-                            style={{
-                              padding: '8px 10px',
-                              fontSize: '0.82rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '6px',
-                              fontWeight: 600,
-                              background: 'rgba(245, 158, 11, 0.1)',
-                              borderColor: 'rgba(245, 158, 11, 0.3)',
-                              color: '#f59e0b',
-                            }}
-                            title="Laden beenden"
-                          >
-                            <Power size={15} /> Laden stoppen
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={isRemoteLoading || !snap.is_plugged_in}
-                            onClick={() => handleRemoteCommand({ action: 'start_charge' })}
-                            className="btn-secondary"
-                            style={{
-                              padding: '8px 10px',
-                              fontSize: '0.82rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '6px',
-                              fontWeight: 600,
-                              background: 'rgba(16, 185, 129, 0.1)',
-                              borderColor: 'rgba(16, 185, 129, 0.3)',
-                              color: '#10b981',
-                              opacity: snap.is_plugged_in ? 1 : 0.6,
-                            }}
-                            title={snap.is_plugged_in ? 'Laden sofort starten' : 'Nur möglich, wenn Ladekabel angesteckt ist'}
-                          >
-                            <Zap size={15} /> Laden starten
-                          </button>
-                        )}
+                    {showVehicleMap && (
+                      <div style={{ marginTop: '12px', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                        <iframe
+                          title="Fahrzeug Parkposition"
+                          width="100%"
+                          height="220"
+                          style={{ border: 0, display: 'block' }}
+                          src={`https://www.openstreetmap.org/export/embed.html?bbox=${snap.location_lon - 0.005}%2C${snap.location_lat - 0.003}%2C${snap.location_lon + 0.005}%2C${snap.location_lat + 0.003}&layer=mapnik&marker=${snap.location_lat}%2C${snap.location_lon}`}
+                        />
                       </div>
-                    </details>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-        )}
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
         {/* ========================================================================= */}
         {/* TAB: CHARGING FORM */}
@@ -2038,23 +1876,44 @@ export function App() {
 
       {/* Mobile Bottom Navigation Bar */}
       <nav className="nav-mobile">
-        <button className={`mobile-tab ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+        <button
+          type="button"
+          className={`mobile-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
+          onClick={() => setActiveTab('dashboard')}
+        >
           <Gauge size={20} />
           <span>Dashboard</span>
         </button>
-        <button className={`mobile-tab ${activeTab === 'charge' ? 'active' : ''}`} onClick={() => setActiveTab('charge')}>
+        <button
+          type="button"
+          className={`mobile-tab ${activeTab === 'charge' ? 'active' : ''}`}
+          onClick={() => setActiveTab('charge')}
+        >
           <Zap size={20} />
           <span>Laden</span>
         </button>
-        <button className={`mobile-tab ${activeTab === 'fuel' ? 'active' : ''}`} onClick={() => setActiveTab('fuel')}>
-          <Fuel size={20} />
+        <div
+          className={`mobile-tab-center ${activeTab === 'fuel' ? 'active' : ''}`}
+          onClick={() => setActiveTab('fuel')}
+        >
+          <div className="mobile-tab-center-btn">
+            <ChevronUp size={22} color="#0f172a" />
+          </div>
           <span>Tanken</span>
-        </button>
-        <button className={`mobile-tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>
+        </div>
+        <button
+          type="button"
+          className={`mobile-tab ${activeTab === 'history' ? 'active' : ''}`}
+          onClick={() => setActiveTab('history')}
+        >
           <History size={20} />
           <span>Verlauf</span>
         </button>
-        <button className={`mobile-tab ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
+        <button
+          type="button"
+          className={`mobile-tab ${activeTab === 'settings' ? 'active' : ''}`}
+          onClick={() => setActiveTab('settings')}
+        >
           <Settings size={20} />
           <span>Setup</span>
         </button>
