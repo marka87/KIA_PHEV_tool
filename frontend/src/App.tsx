@@ -536,29 +536,6 @@ export function App() {
           {/* ========================================================================= */}
           {activeTab === 'dashboard' && (
           <div>
-            {/* Quick Actions for Mobile */}
-            <div className="quick-bar">
-              <button className="btn btn-secondary" style={{ borderColor: 'var(--ev-color)' }} onClick={() => setActiveTab('charge')}>
-                <Zap size={16} color="var(--ev-color)" /> + Ladung
-              </button>
-              <button className="btn btn-secondary" style={{ borderColor: 'var(--fuel-color)' }} onClick={() => setActiveTab('fuel')}>
-                <Fuel size={16} color="var(--fuel-color)" /> + Tanken
-              </button>
-              <button className="btn btn-secondary" onClick={() => setActiveTab('snapshot')}>
-                <Gauge size={16} /> + Tacho
-              </button>
-              <button
-                className="btn btn-secondary"
-                style={{ borderColor: '#38bdf8' }}
-                onClick={() => handleKiaSync(false)}
-                disabled={isKiaSyncing}
-                title="Aktuelle Daten (km, Akku) von Kia Connect abrufen"
-              >
-                <RefreshCw size={16} color="#38bdf8" className={isKiaSyncing ? 'spin' : ''} />
-                {isKiaSyncing ? 'Kia lädt...' : 'Kia Sync'}
-              </button>
-            </div>
-
             {/* Break-Even Highlight Banner */}
             {stats && (
               <div className="card kpi-break-even" style={{ marginBottom: '20px' }}>
@@ -605,17 +582,17 @@ export function App() {
                   <strong>{stats ? formatCur(stats.evMetrics.costPer100Km) : '...'}</strong> / 100 km
                 </div>
 
-                <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(16, 185, 129, 0.2)', fontSize: '0.85rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Realverbrauch:</span>
+                <div className="metric-grid" style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(52, 211, 153, 0.2)', fontSize: '0.85rem' }}>
+                  <div className="metric-row">
+                    <span>Realverbrauch:</span>
                     <strong>{stats ? formatNum(stats.evMetrics.kwhPer100Km, 1) : '...'} kWh/100km</strong>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Erfasste EV-Distanz:</span>
+                  <div className="metric-row">
+                    <span>Erfasste EV-Distanz:</span>
                     <span>{stats ? formatNum(stats.evMetrics.totalEvKm, 0) : '0'} km</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Geladene Energie:</span>
+                  <div className="metric-row">
+                    <span>Geladene Energie:</span>
                     <span>{stats ? formatNum(stats.evMetrics.totalKwh, 1) : '0'} kWh ({stats ? formatCur(stats.evMetrics.totalCost) : '0 €'})</span>
                   </div>
                   {stats?.evMetrics.isEstimate && (
@@ -638,17 +615,17 @@ export function App() {
                   <strong>{stats ? formatCur(stats.fuelMetrics.costPer100Km) : '...'}</strong> / 100 km
                 </div>
 
-                <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.85rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Realverbrauch:</span>
+                <div className="metric-grid" style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(251, 191, 36, 0.2)', fontSize: '0.85rem' }}>
+                  <div className="metric-row">
+                    <span>Realverbrauch:</span>
                     <strong>{stats ? formatNum(stats.fuelMetrics.literPer100Km, 1) : '...'} L/100km</strong>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Erfasste Benzin-Distanz:</span>
+                  <div className="metric-row">
+                    <span>Erfasste Benzin-Distanz:</span>
                     <span>{stats ? formatNum(stats.fuelMetrics.totalFuelKm, 0) : '0'} km</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Getankt gesamt:</span>
+                  <div className="metric-row">
+                    <span>Getankt gesamt:</span>
                     <span>{stats ? formatNum(stats.fuelMetrics.totalLiter, 1) : '0'} L ({stats ? formatCur(stats.fuelMetrics.totalCost) : '0 €'})</span>
                   </div>
                   {stats?.fuelMetrics.isEstimate && (
@@ -807,8 +784,7 @@ export function App() {
                             type="button"
                             onClick={() => handleKiaSync(false)}
                             disabled={isKiaSyncing}
-                            className="btn-secondary"
-                            style={{ padding: '3px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            className="btn-secondary ghost-button"
                             title="Liest den schnellen Cloud-Zustand (1-2 Sek., batterieschonend)"
                           >
                             <RefreshCw size={11} className={isKiaSyncing ? 'spin' : ''} />
@@ -818,16 +794,7 @@ export function App() {
                             type="button"
                             onClick={() => handleKiaSync(true)}
                             disabled={isKiaSyncing}
-                            className="btn-secondary"
-                            style={{
-                              padding: '3px 8px',
-                              fontSize: '0.75rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              borderColor: 'rgba(56, 189, 248, 0.4)',
-                              color: '#38bdf8',
-                            }}
+                            className="btn-secondary ghost-button"
                             title="Weckt das Auto per Mobilfunk auf (ca. 20-30 Sek.) für frische Live-Sensordaten"
                           >
                             <Radio size={11} className={isKiaSyncing ? 'spin' : ''} />
@@ -840,25 +807,6 @@ export function App() {
 
                   {/* Status Badges Row */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
-                    {/* Verriegelung */}
-                    {snap.is_locked !== null && snap.is_locked !== undefined && (
-                      <span
-                        className="badge"
-                        style={{
-                          backgroundColor: snap.is_locked ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.18)',
-                          color: snap.is_locked ? '#10b981' : '#ef4444',
-                          border: snap.is_locked ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.4)',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {snap.is_locked ? <Lock size={13} /> : <Unlock size={13} />}
-                        {snap.is_locked ? 'Verriegelt' : 'Nicht verriegelt!'}
-                      </span>
-                    )}
-
                     {/* Ladekabel & Ladezustand */}
                     {snap.is_charging ? (
                       <span
@@ -961,8 +909,8 @@ export function App() {
                       </div>
                       {/* Battery mini progress bar */}
                       {snap.soc_percent !== null && snap.soc_percent !== undefined && (
-                        <div style={{ width: '100%', height: '5px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '3px', marginTop: '6px', overflow: 'hidden' }}>
-                          <div style={{ width: `${Math.min(100, Math.max(0, snap.soc_percent))}%`, height: '100%', backgroundColor: 'var(--ev-color)' }} />
+                        <div className="battery-progress">
+                          <div style={{ width: `${Math.min(100, Math.max(0, snap.soc_percent))}%`, backgroundColor: 'var(--ev-color)' }} />
                         </div>
                       )}
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -989,11 +937,10 @@ export function App() {
                       </div>
                       {/* 12V mini progress bar */}
                       {snap.car_12v_percent !== null && snap.car_12v_percent !== undefined && (
-                        <div style={{ width: '100%', height: '5px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '3px', marginTop: '6px', overflow: 'hidden' }}>
+                        <div className="battery-progress">
                           <div
                             style={{
                               width: `${Math.min(100, Math.max(0, snap.car_12v_percent))}%`,
-                              height: '100%',
                               backgroundColor: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981',
                             }}
                           />
@@ -1007,14 +954,19 @@ export function App() {
 
                   {/* Security & Doors / Windows Status Bar */}
                   {snap.doors_open_json && (
-                    <div style={{ marginBottom: '14px' }}>
+                    <div className="vehicle-status-line">
+                      {snap.is_locked !== null && snap.is_locked !== undefined && (
+                        <>
+                          {snap.is_locked ? <Lock size={15} color="var(--ev-color)" /> : <Unlock size={15} color="var(--danger)" />}
+                          <strong style={{ color: snap.is_locked ? 'var(--ev-color)' : 'var(--danger)' }}>
+                            {snap.is_locked ? 'Verriegelt' : 'Nicht verriegelt'}
+                          </strong>
+                          <span style={{ color: 'var(--text-muted)' }}>·</span>
+                        </>
+                      )}
                       {hasOpenItems ? (
                         <div
                           style={{
-                            padding: '10px 14px',
-                            borderRadius: '8px',
-                            backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                            border: '1px solid rgba(239, 68, 68, 0.35)',
                             display: 'flex',
                             alignItems: 'flex-start',
                             gap: '10px',
@@ -1037,23 +989,12 @@ export function App() {
                           </div>
                         </div>
                       ) : (
-                        <div
-                          style={{
-                            padding: '9px 14px',
-                            borderRadius: '8px',
-                            backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                            border: '1px solid rgba(16, 185, 129, 0.2)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            fontSize: '0.85rem',
-                          }}
-                        >
-                          <ShieldCheck size={18} style={{ color: '#10b981', flexShrink: 0 }} />
+                        <>
+                          <ShieldCheck size={16} style={{ color: 'var(--ev-color)', flexShrink: 0 }} />
                           <span style={{ color: 'var(--text-main)' }}>
-                            Alle 4 Türen, Fenster, Kofferraum und Motorhaube sind <strong>vollständig geschlossen</strong>.
+                            Alles geschlossen
                           </span>
-                        </div>
+                        </>
                       )}
                     </div>
                   )}
