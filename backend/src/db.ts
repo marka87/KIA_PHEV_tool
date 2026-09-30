@@ -13,6 +13,7 @@ if (!fs.existsSync(BACKUP_DIR)) {
 }
 
 export const db = new DatabaseSync(DB_PATH);
+console.log(`[DB] Verbunden mit SQLite-Datenbank: ${DB_PATH}`);
 
 // Initialize PRAGMAs
 db.exec(`

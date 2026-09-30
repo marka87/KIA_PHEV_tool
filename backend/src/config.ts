@@ -33,7 +33,7 @@ export const HOST = process.env.HOST || '0.0.0.0';
 // 2. Data Persistence & Paths
 // Default: backend/data/phev.db, but can be set to any outside directory (e.g., C:/PHEV_Data/phev.db)
 export const DB_PATH = process.env.DB_PATH
-  ? path.resolve(process.env.DB_PATH)
+  ? (path.isAbsolute(process.env.DB_PATH) ? path.resolve(process.env.DB_PATH) : path.resolve(projectRoot, process.env.DB_PATH))
   : path.resolve(__dirname, '../data/phev.db');
 
 export const BACKUP_DIR = process.env.BACKUP_DIR
