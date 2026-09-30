@@ -59,6 +59,13 @@ body {
   padding: 12px;
 }
 
+@media (min-width: 860px) {
+  .container {
+    max-width: 1080px;
+    padding: 20px 24px;
+  }
+}
+
 /* Header */
 /* Header */
 .app-header {
@@ -508,6 +515,39 @@ body {
   flex-direction: column;
   gap: 12px;
   width: 100%;
+}
+
+@media (min-width: 860px) {
+  .dashboard-wrapper {
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    grid-template-areas:
+      "control savings"
+      "status  costs"
+      "park    costs";
+    gap: 16px;
+    align-items: start;
+  }
+
+  .control-card {
+    grid-area: control;
+  }
+
+  .status-card {
+    grid-area: status;
+  }
+
+  .savings-banner-card {
+    grid-area: savings;
+  }
+
+  .cost-card {
+    grid-area: costs;
+  }
+
+  .park-card {
+    grid-area: park;
+  }
 }
 
 /* Card 1: BEDIENUNG */
@@ -1220,6 +1260,90 @@ input:focus, select:focus, textarea:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  transition: background-color 0.15s ease;
+}
+
+.list-item:hover {
+  background-color: var(--bg-card-hover);
+}
+
+/* Quick Chip Buttons for Forms */
+.quick-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  border-radius: 9999px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.quick-chip:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+/* History Filter Chips */
+.filter-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+.filter-chip {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+
+.filter-chip:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-main);
+}
+
+.filter-chip.active {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.filter-chip.active.chip-charge {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+.filter-chip.active.chip-fuel {
+  background: rgba(251, 191, 36, 0.16);
+  border-color: #fbbf24;
+  color: #fbbf24;
+}
+
+.filter-chip.active.chip-snapshot {
+  background: rgba(148, 163, 184, 0.2);
+  border-color: #94a3b8;
+  color: #f1f5f9;
 }
 
 .quick-bar {
@@ -1234,3 +1358,4 @@ input:focus, select:focus, textarea:focus {
 .spin {
   animation: spin 1s linear infinite;
 }
+

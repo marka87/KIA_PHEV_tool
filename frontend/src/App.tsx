@@ -252,7 +252,17 @@ export function App() {
       loadTariffs();
       loadKiaStatus();
     }
-  }, [activeTab]);
+    if (activeTab === 'charge') {
+      if (!chargeOdo && stats?.latestSnapshot?.odometer_km) {
+        setChargeOdo(Math.round(stats.latestSnapshot.odometer_km).toString());
+      }
+    }
+    if (activeTab === 'fuel') {
+      if (!fuelOdo && stats?.latestSnapshot?.odometer_km) {
+        setFuelOdo(Math.round(stats.latestSnapshot.odometer_km).toString());
+      }
+    }
+  }, [activeTab, stats]);
 
   // Format Helpers
   const formatCur = (n: number) => n.toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
@@ -1146,6 +1156,35 @@ export function App() {
                   value={chargeKwh}
                   onChange={(e) => setChargeKwh(e.target.value)}
                 />
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                  {stats?.latestSnapshot?.soc_percent != null && stats.latestSnapshot.soc_percent < 100 && (() => {
+                    const soc = stats.latestSnapshot.soc_percent;
+                    const needed = ((100 - soc) / 100 * 8.3).toFixed(1).replace('.', ',');
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setChargeKwh(needed)}
+                        className="quick-chip"
+                      >
+                        ⚡ Auf 100% (~{needed} kWh)
+                      </button>
+                    );
+                  })()}
+                  <button
+                    type="button"
+                    onClick={() => setChargeKwh('8,3')}
+                    className="quick-chip"
+                  >
+                    🔋 100% Voll (8,3 kWh)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChargeKwh('5,0')}
+                    className="quick-chip"
+                  >
+                    5,0 kWh
+                  </button>
+                </div>
                 <div className="input-helper">Vom VKW-Display / Zähler oder oben per Akku-% berechnen</div>
               </div>
 
@@ -1398,6 +1437,7 @@ export function App() {
                   name="odometer_km"
                   required
                   placeholder="z.B. 46000"
+                  defaultValue={stats?.latestSnapshot?.odometer_km ? Math.round(stats.latestSnapshot.odometer_km).toString() : ''}
                   autoFocus
                   inputMode="numeric"
                 />
@@ -1406,17 +1446,35 @@ export function App() {
               <div className="grid-2">
                 <div className="form-group">
                   <label>Restreichweite EV (km)</label>
-                  <input type="text" name="ev_range_km" placeholder="z.B. 42" inputMode="numeric" />
+                  <input
+                    type="text"
+                    name="ev_range_km"
+                    placeholder="z.B. 42"
+                    defaultValue={stats?.latestSnapshot?.ev_range_km != null ? Math.round(stats.latestSnapshot.ev_range_km).toString() : ''}
+                    inputMode="numeric"
+                  />
                 </div>
                 <div className="form-group">
                   <label>Restreichweite Benzin (km)</label>
-                  <input type="text" name="fuel_range_km" placeholder="z.B. 520" inputMode="numeric" />
+                  <input
+                    type="text"
+                    name="fuel_range_km"
+                    placeholder="z.B. 520"
+                    defaultValue={stats?.latestSnapshot?.fuel_range_km != null ? Math.round(stats.latestSnapshot.fuel_range_km).toString() : ''}
+                    inputMode="numeric"
+                  />
                 </div>
               </div>
 
               <div className="form-group">
                 <label>Batteriestand SoC (%)</label>
-                <input type="text" name="soc_percent" placeholder="z.B. 85" inputMode="numeric" />
+                <input
+                  type="text"
+                  name="soc_percent"
+                  placeholder="z.B. 85"
+                  defaultValue={stats?.latestSnapshot?.soc_percent != null ? Math.round(stats.latestSnapshot.soc_percent).toString() : ''}
+                  inputMode="numeric"
+                />
               </div>
 
               <div className="form-group">
@@ -1446,31 +1504,27 @@ export function App() {
         {activeTab === 'history' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div className="filter-chips">
                 <button
-                  className={`btn ${historyFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ width: 'auto', padding: '6px 12px', fontSize: '0.85rem' }}
+                  className={`filter-chip ${historyFilter === 'all' ? 'active' : ''}`}
                   onClick={() => setHistoryFilter('all')}
                 >
                   Alle ({chargingList.length + fuelList.length + snapshotList.length})
                 </button>
                 <button
-                  className={`btn ${historyFilter === 'charge' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ width: 'auto', padding: '6px 12px', fontSize: '0.85rem' }}
+                  className={`filter-chip chip-charge ${historyFilter === 'charge' ? 'active' : ''}`}
                   onClick={() => setHistoryFilter('charge')}
                 >
                   ⚡ Ladungen ({chargingList.length})
                 </button>
                 <button
-                  className={`btn ${historyFilter === 'fuel' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ width: 'auto', padding: '6px 12px', fontSize: '0.85rem' }}
+                  className={`filter-chip chip-fuel ${historyFilter === 'fuel' ? 'active' : ''}`}
                   onClick={() => setHistoryFilter('fuel')}
                 >
                   ⛽ Tanken ({fuelList.length})
                 </button>
                 <button
-                  className={`btn ${historyFilter === 'snapshot' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ width: 'auto', padding: '6px 12px', fontSize: '0.85rem' }}
+                  className={`filter-chip chip-snapshot ${historyFilter === 'snapshot' ? 'active' : ''}`}
                   onClick={() => setHistoryFilter('snapshot')}
                 >
                   📸 Snapshots ({snapshotList.length})
@@ -1479,16 +1533,15 @@ export function App() {
 
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <button
-                  className="btn btn-secondary"
-                  style={{ width: 'auto', padding: '6px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  className="filter-chip"
                   onClick={() => setHistorySortOrder(historySortOrder === 'desc' ? 'asc' : 'desc')}
                   title="Nach Datum sortieren"
                 >
-                  📅 {historySortOrder === 'desc' ? 'Neueste zuerst ⬇️' : 'Älteste zuerst ⬆️'}
+                  📅 {historySortOrder === 'desc' ? 'Neueste ⬇️' : 'Älteste ⬆️'}
                 </button>
 
-                <button className="btn btn-secondary" style={{ width: 'auto', padding: '6px 12px', fontSize: '0.85rem' }} onClick={loadHistory}>
-                  <RefreshCw size={14} /> Aktualisieren
+                <button className="filter-chip" onClick={loadHistory} title="Aktualisieren">
+                  <RefreshCw size={13} /> Aktualisieren
                 </button>
               </div>
             </div>
@@ -1508,7 +1561,15 @@ export function App() {
                 fuelList.forEach((f) => items.push({ type: 'fuel', zeitpunkt: f.zeitpunkt, data: f }));
               }
               if (historyFilter === 'all' || historyFilter === 'snapshot') {
-                snapshotList.forEach((s) => items.push({ type: 'snapshot', zeitpunkt: s.zeitpunkt, data: s }));
+                // Ponytail: Only show snapshots in history when odometer value changed
+                let lastOdo: number | null = null;
+                const sortedSnaps = [...snapshotList].sort((a, b) => new Date(a.zeitpunkt).getTime() - new Date(b.zeitpunkt).getTime());
+                const dedupedSnaps = sortedSnaps.filter((s) => {
+                  if (s.odometer_km === lastOdo) return false;
+                  lastOdo = s.odometer_km;
+                  return true;
+                });
+                dedupedSnaps.forEach((s) => items.push({ type: 'snapshot', zeitpunkt: s.zeitpunkt, data: s }));
               }
 
               items.sort((a, b) => {

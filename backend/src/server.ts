@@ -436,50 +436,97 @@ app.post('/api/snapshots', asyncHandler((req, res) => {
     return res.status(400).json({ error: 'Kilometerstand (odometer_km) ist Pflicht' });
   }
 
-  const stmt = db.prepare(`
-    INSERT INTO vehicle_snapshots (
-      vehicle_id, zeitpunkt, odometer_km, ev_range_km, fuel_range_km, ev_odometer_km, soc_percent,
-      car_12v_percent, is_charging, is_plugged_in, is_locked, doors_open_json, windows_open_json,
-      climate_status_json, charge_remaining_min, charge_port_open, location_lat, location_lon,
-      tire_pressure_warning, washer_fluid_warning, smart_key_warning, quelle
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+  const parsedOdo = parseLocaleNumber(odometer_km);
+  const vId = Number(vehicle_id);
 
-  const result = stmt.run(
-    Number(vehicle_id),
-    zeitpunkt,
-    parseLocaleNumber(odometer_km),
-    ev_range_km ? parseLocaleNumber(ev_range_km) : null,
-    fuel_range_km ? parseLocaleNumber(fuel_range_km) : null,
-    ev_odometer_km ? parseLocaleNumber(ev_odometer_km) : null,
-    soc_percent ? parseLocaleNumber(soc_percent) : null,
-    car_12v_percent !== undefined && car_12v_percent !== null ? parseLocaleNumber(car_12v_percent) : null,
-    is_charging ? 1 : 0,
-    is_plugged_in ? 1 : 0,
-    is_locked !== undefined && is_locked !== null ? (is_locked ? 1 : 0) : null,
-    doors_open_json || null,
-    windows_open_json || null,
-    climate_status_json || null,
-    charge_remaining_min !== undefined && charge_remaining_min !== null ? Number(charge_remaining_min) : null,
-    charge_port_open ? 1 : 0,
-    location_lat !== undefined && location_lat !== null ? Number(location_lat) : null,
-    location_lon !== undefined && location_lon !== null ? Number(location_lon) : null,
-    tire_pressure_warning ? 1 : 0,
-    washer_fluid_warning ? 1 : 0,
-    smart_key_warning ? 1 : 0,
-    quelle,
-  );
+  // Ponytail: Only create new snapshot row if odometer changed.
+  // If odometer is unchanged, update latest snapshot so telemetry stays live without flooding Verlauf.
+  const latest = db.prepare(`
+    SELECT id, odometer_km FROM vehicle_snapshots
+    WHERE vehicle_id = ?
+    ORDER BY zeitpunkt DESC, id DESC LIMIT 1
+  `).get(vId) as { id: number; odometer_km: number } | undefined;
 
-  const newSnapshotId = Number(result.lastInsertRowid);
+  let snapshotId: number;
+
+  if (latest && Math.abs(latest.odometer_km - parsedOdo) < 0.001) {
+    db.prepare(`
+      UPDATE vehicle_snapshots SET
+        zeitpunkt = ?, ev_range_km = ?, fuel_range_km = ?, ev_odometer_km = ?, soc_percent = ?,
+        car_12v_percent = ?, is_charging = ?, is_plugged_in = ?, is_locked = ?, doors_open_json = ?,
+        windows_open_json = ?, climate_status_json = ?, charge_remaining_min = ?, charge_port_open = ?,
+        location_lat = ?, location_lon = ?, tire_pressure_warning = ?, washer_fluid_warning = ?,
+        smart_key_warning = ?, quelle = ?
+      WHERE id = ?
+    `).run(
+      zeitpunkt,
+      ev_range_km ? parseLocaleNumber(ev_range_km) : null,
+      fuel_range_km ? parseLocaleNumber(fuel_range_km) : null,
+      ev_odometer_km ? parseLocaleNumber(ev_odometer_km) : null,
+      soc_percent ? parseLocaleNumber(soc_percent) : null,
+      car_12v_percent !== undefined && car_12v_percent !== null ? parseLocaleNumber(car_12v_percent) : null,
+      is_charging ? 1 : 0,
+      is_plugged_in ? 1 : 0,
+      is_locked !== undefined && is_locked !== null ? (is_locked ? 1 : 0) : null,
+      doors_open_json || null,
+      windows_open_json || null,
+      climate_status_json || null,
+      charge_remaining_min !== undefined && charge_remaining_min !== null ? Number(charge_remaining_min) : null,
+      charge_port_open ? 1 : 0,
+      location_lat !== undefined && location_lat !== null ? Number(location_lat) : null,
+      location_lon !== undefined && location_lon !== null ? Number(location_lon) : null,
+      tire_pressure_warning ? 1 : 0,
+      washer_fluid_warning ? 1 : 0,
+      smart_key_warning ? 1 : 0,
+      quelle,
+      latest.id,
+    );
+    snapshotId = latest.id;
+  } else {
+    const stmt = db.prepare(`
+      INSERT INTO vehicle_snapshots (
+        vehicle_id, zeitpunkt, odometer_km, ev_range_km, fuel_range_km, ev_odometer_km, soc_percent,
+        car_12v_percent, is_charging, is_plugged_in, is_locked, doors_open_json, windows_open_json,
+        climate_status_json, charge_remaining_min, charge_port_open, location_lat, location_lon,
+        tire_pressure_warning, washer_fluid_warning, smart_key_warning, quelle
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      vId,
+      zeitpunkt,
+      parsedOdo,
+      ev_range_km ? parseLocaleNumber(ev_range_km) : null,
+      fuel_range_km ? parseLocaleNumber(fuel_range_km) : null,
+      ev_odometer_km ? parseLocaleNumber(ev_odometer_km) : null,
+      soc_percent ? parseLocaleNumber(soc_percent) : null,
+      car_12v_percent !== undefined && car_12v_percent !== null ? parseLocaleNumber(car_12v_percent) : null,
+      is_charging ? 1 : 0,
+      is_plugged_in ? 1 : 0,
+      is_locked !== undefined && is_locked !== null ? (is_locked ? 1 : 0) : null,
+      doors_open_json || null,
+      windows_open_json || null,
+      climate_status_json || null,
+      charge_remaining_min !== undefined && charge_remaining_min !== null ? Number(charge_remaining_min) : null,
+      charge_port_open ? 1 : 0,
+      location_lat !== undefined && location_lat !== null ? Number(location_lat) : null,
+      location_lon !== undefined && location_lon !== null ? Number(location_lon) : null,
+      tire_pressure_warning ? 1 : 0,
+      washer_fluid_warning ? 1 : 0,
+      smart_key_warning ? 1 : 0,
+      quelle,
+    );
+    snapshotId = Number(result.lastInsertRowid);
+  }
 
   // Automatically check if this snapshot indicates an unlogged charging session
   try {
-    checkAndCreateChargeSuggestion(newSnapshotId);
+    checkAndCreateChargeSuggestion(snapshotId);
   } catch (err: any) {
     logger.error('[ChargeSuggestions] Fehler bei der Ladeerkennung:', err.message);
   }
 
-  res.status(201).json({ id: newSnapshotId, message: 'Snapshot gespeichert' });
+  res.status(201).json({ id: snapshotId, message: 'Snapshot gespeichert' });
 }));
 
 app.delete('/api/snapshots/:id', (req, res) => {
