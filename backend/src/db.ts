@@ -180,6 +180,18 @@ export function initDatabase() {
     insertTariff.run('vkw', 'VKW / vlotte Ladekarte', '2024-01-01', 0.39, 0);
     insertTariff.run('enbw', 'EnBW mobility+ Standard', '2024-01-01', 0.59, 0);
   }
+
+  // Deduplicate redundant snapshots with identical odometer readings (keeps latest telemetry)
+  db.exec(`
+    DELETE FROM vehicle_snapshots
+    WHERE id NOT IN (
+      SELECT MAX(id) FROM vehicle_snapshots GROUP BY vehicle_id, odometer_km
+    ) AND id NOT IN (
+      SELECT from_snapshot_id FROM pending_charge_suggestions WHERE from_snapshot_id IS NOT NULL
+      UNION
+      SELECT to_snapshot_id FROM pending_charge_suggestions WHERE to_snapshot_id IS NOT NULL
+    );
+  `);
 }
 
 /**
