@@ -605,437 +605,472 @@ export function App() {
             const is12vLow = snap?.car_12v_percent !== null && snap?.car_12v_percent !== undefined && snap.car_12v_percent < 50;
             const is12vMed = snap?.car_12v_percent !== null && snap?.car_12v_percent !== undefined && snap.car_12v_percent >= 50 && snap.car_12v_percent < 65;
 
-            return (
-              <div className="dashboard-wrapper">
-                {/* 1. BEDIENUNG CARD */}
-                <div className="control-card">
-                  <div className="control-card-title">BEDIENUNG</div>
-                  <div className="control-btn-grid">
-                    <button
-                      type="button"
-                      className="control-btn-lock"
-                      disabled={isRemoteLoading}
-                      onClick={() => {
-                        if (!kiaStatus?.configured) {
-                          showToast('Kia Connect Zugangsdaten bitte zuerst in Setup hinterlegen', 'warn');
-                          return;
-                        }
-                        handleRemoteCommand({ action: 'lock' });
-                      }}
-                      title="Auto verriegeln"
-                    >
-                      <Lock size={24} />
-                      <span>Verriegeln</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="control-btn-unlock"
-                      disabled={isRemoteLoading}
-                      onClick={() => {
-                        if (!kiaStatus?.configured) {
-                          showToast('Kia Connect Zugangsdaten bitte zuerst in Setup hinterlegen', 'warn');
-                          return;
-                        }
-                        if (window.confirm('Möchtest du das Fahrzeug wirklich aus der Ferne entriegeln?')) {
-                          handleRemoteCommand({ action: 'unlock' });
-                        }
-                      }}
-                      title="Auto entriegeln"
-                    >
-                      <Unlock size={24} />
-                      <span>Entriegeln</span>
-                    </button>
-                  </div>
-
+            const renderControlCard = () => (
+              <div className="control-card">
+                <div className="control-card-title">BEDIENUNG</div>
+                <div className="control-btn-grid">
                   <button
                     type="button"
-                    className="control-btn-charge"
+                    className="control-btn-lock"
                     disabled={isRemoteLoading}
                     onClick={() => {
                       if (!kiaStatus?.configured) {
                         showToast('Kia Connect Zugangsdaten bitte zuerst in Setup hinterlegen', 'warn');
                         return;
                       }
-                      if (snap?.is_charging) {
-                        handleRemoteCommand({ action: 'stop_charge' });
-                      } else {
-                        handleRemoteCommand({ action: 'start_charge' });
+                      handleRemoteCommand({ action: 'lock' });
+                    }}
+                    title="Auto verriegeln"
+                  >
+                    <Lock size={24} />
+                    <span>Verriegeln</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="control-btn-unlock"
+                    disabled={isRemoteLoading}
+                    onClick={() => {
+                      if (!kiaStatus?.configured) {
+                        showToast('Kia Connect Zugangsdaten bitte zuerst in Setup hinterlegen', 'warn');
+                        return;
+                      }
+                      if (window.confirm('Möchtest du das Fahrzeug wirklich aus der Ferne entriegeln?')) {
+                        handleRemoteCommand({ action: 'unlock' });
                       }
                     }}
-                    style={{
-                      color: snap?.is_charging ? '#f59e0b' : '#94a3b8',
-                      borderColor: snap?.is_charging ? 'rgba(245, 158, 11, 0.4)' : undefined,
-                    }}
+                    title="Auto entriegeln"
                   >
-                    {isRemoteLoading && remoteActionActive?.includes('charge') ? (
-                      <RefreshCw size={15} className="spin" />
-                    ) : (
-                      <Power size={15} />
-                    )}
-                    <span>{snap?.is_charging ? 'Laden Stoppen' : 'Laden Starten'}</span>
+                    <Unlock size={24} />
+                    <span>Entriegeln</span>
                   </button>
                 </div>
 
-                {/* 2. FAHRZEUGSTATUS CARD */}
-                <div className="status-card">
-                  <div className="status-card-header">
-                    <div>
-                      <div className="status-card-title">FAHRZEUGSTATUS</div>
-                      <div className="status-card-subtitle">
-                        Stand: {formatDate(snap?.zeitpunkt || new Date().toISOString())}
-                      </div>
-                    </div>
-
-                    <div className="status-sync-btns">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!kiaStatus?.configured) {
-                            showToast('Kia Connect noch nicht eingerichtet in Setup', 'warn');
-                            return;
-                          }
-                          handleKiaSync(false);
-                        }}
-                        disabled={isKiaSyncing}
-                        className="status-sync-btn"
-                        title="Schneller Cloud-Sync"
-                      >
-                        <RefreshCw size={12} className={isKiaSyncing ? 'spin' : ''} />
-                        Schnell Sync
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!kiaStatus?.configured) {
-                            showToast('Kia Connect noch nicht eingerichtet in Setup', 'warn');
-                            return;
-                          }
-                          handleKiaSync(true);
-                        }}
-                        disabled={isKiaSyncing}
-                        className="status-sync-btn"
-                        title="Live Aufweck-Sync per Mobilfunk"
-                      >
-                        <Radio size={12} className={isKiaSyncing ? 'spin' : ''} />
-                        Live Sync
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="status-grid status-grid-tiles">
-                    {/* Left Column: Tacho & HV-Akku */}
-                    <div className="status-tile">
-                      <Gauge size={22} style={{ color: '#cbd5e1' }} />
-                      <div className="status-metric-label">TACHO</div>
-                      <div className="status-metric-val">
-                        {formatNum(snap?.odometer_km || 0, 0)} km
-                      </div>
-
-                    </div>
-
-                    <div className="status-tile">
-                      <Fuel size={22} style={{ color: '#fbbf24' }} />
-                      <div className="status-metric-label">REICHWEITE (BENZIN)</div>
-                      <div className="status-metric-val">
-                        {snap?.fuel_range_km ? `${formatNum(snap.fuel_range_km, 0)} km` : '- km'}
-                      </div>
-
-                    </div>
-
-                    <div className="status-tile">
-                      <BatteryCharging className="status-tile-icon" style={{ color: '#22c55e' }} />
-                      <div className="status-battery-label"><span>HV-AKKU</span></div>
-                      <div className="status-battery-val" style={{ color: '#22c55e' }}>
-                        {snap?.soc_percent !== null && snap?.soc_percent !== undefined ? `${formatNum(snap.soc_percent, 0)}%` : '-%'}
-                        {snap?.ev_range_km ? ` (${formatNum(snap.ev_range_km, 0)} km)` : ''}
-                      </div>
-                      <div className="status-progress-track">
-                        <div className="status-progress-fill" style={{ width: `${Math.min(100, Math.max(0, snap?.soc_percent || 0))}%`, backgroundColor: '#22c55e' }} />
-                      </div>
-                      <div className="status-subtext">{snap?.charge_remaining_min ? `ca. ${snap.charge_remaining_min} Min. bis voll` : 'Optimaler Zustand'}</div>
-                    </div>
-
-                    <div className="status-tile">
-                      <Battery className="status-tile-icon" style={{ color: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981' }} />
-                      <div className="status-battery-label"><span>12V-AKKU</span></div>
-                      <div
-                        className="status-battery-val"
-                        style={{ color: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981' }}
-                      >
-                        {snap?.car_12v_percent !== null && snap?.car_12v_percent !== undefined ? `${snap.car_12v_percent}%` : '-%'}
-                      </div>
-
-                      <div className="status-progress-track">
-                        <div
-                          className="status-progress-fill"
-                          style={{
-                            width: `${Math.min(100, Math.max(0, snap?.car_12v_percent || 0))}%`,
-                            backgroundColor: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981',
-                          }}
-                        />
-                      </div>
-
-                      <div className="status-subtext">
-                        {is12vLow ? '⚠️ Bitte bald laden' : is12vMed ? 'Normale Entladung' : 'Optimaler Zustand'}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Warnings or open items banner if any */}
-                  {hasOpenItems && (
-                    <div className="status-warning-banner">
-                      <AlertTriangle size={15} style={{ color: '#ef4444', flexShrink: 0 }} />
-                      <div>
-                        Geöffnet: {openDoorsList.concat(openWindowsList).join(', ')}
-                      </div>
-                    </div>
+                <button
+                  type="button"
+                  className="control-btn-charge"
+                  disabled={isRemoteLoading}
+                  onClick={() => {
+                    if (!kiaStatus?.configured) {
+                      showToast('Kia Connect Zugangsdaten bitte zuerst in Setup hinterlegen', 'warn');
+                      return;
+                    }
+                    if (snap?.is_charging) {
+                      handleRemoteCommand({ action: 'stop_charge' });
+                    } else {
+                      handleRemoteCommand({ action: 'start_charge' });
+                    }
+                  }}
+                  style={{
+                    color: snap?.is_charging ? '#f59e0b' : '#94a3b8',
+                    borderColor: snap?.is_charging ? 'rgba(245, 158, 11, 0.4)' : undefined,
+                  }}
+                >
+                  {isRemoteLoading && remoteActionActive?.includes('charge') ? (
+                    <RefreshCw size={15} className="spin" />
+                  ) : (
+                    <Power size={15} />
                   )}
-                  {hasWarnings && (
-                    <div className="status-warning-banner">
-                      <AlertTriangle size={15} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                      <div>
-                        Warnung:{' '}
-                        {[
-                          snap?.tire_pressure_warning && 'Reifendruck',
-                          snap?.washer_fluid_warning && 'Scheibenwaschwasser',
-                          snap?.smart_key_warning && 'Schlüsselbatterie',
-                        ]
-                          .filter(Boolean)
-                          .join(', ')}
+                  <span>{snap?.is_charging ? 'Laden Stoppen' : 'Laden Starten'}</span>
+                </button>
+              </div>
+            );
+
+            const renderStatusCard = (isDesktop: boolean) => (
+              <div className={`status-card ${isDesktop ? 'status-card-desktop' : ''}`}>
+                <div className="status-card-header">
+                  <div>
+                    <div className="status-card-title">FAHRZEUGSTATUS</div>
+                    <div className="status-card-subtitle">
+                      Stand: {formatDate(snap?.zeitpunkt || new Date().toISOString())}
+                    </div>
+                  </div>
+
+                  <div className="status-sync-btns">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!kiaStatus?.configured) {
+                          showToast('Kia Connect noch nicht eingerichtet in Setup', 'warn');
+                          return;
+                        }
+                        handleKiaSync(false);
+                      }}
+                      disabled={isKiaSyncing}
+                      className="status-sync-btn"
+                      title="Schneller Cloud-Sync"
+                    >
+                      <RefreshCw size={12} className={isKiaSyncing ? 'spin' : ''} />
+                      Schnell Sync
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!kiaStatus?.configured) {
+                          showToast('Kia Connect noch nicht eingerichtet in Setup', 'warn');
+                          return;
+                        }
+                        handleKiaSync(true);
+                      }}
+                      disabled={isKiaSyncing}
+                      className="status-sync-btn"
+                      title="Live Aufweck-Sync per Mobilfunk"
+                    >
+                      <Radio size={12} className={isKiaSyncing ? 'spin' : ''} />
+                      Live Sync
+                    </button>
+                  </div>
+                </div>
+
+                <div className={`status-grid status-grid-tiles ${isDesktop ? 'status-grid-desktop' : ''}`}>
+                  {/* Left Column: Tacho & HV-Akku */}
+                  <div className="status-tile">
+                    <Gauge size={22} style={{ color: '#cbd5e1' }} />
+                    <div className="status-metric-label">TACHO</div>
+                    <div className="status-metric-val">
+                      {formatNum(snap?.odometer_km || 0, 0)} km
+                    </div>
+
+                  </div>
+
+                  <div className="status-tile">
+                    <Fuel size={22} style={{ color: '#fbbf24' }} />
+                    <div className="status-metric-label">REICHWEITE (BENZIN)</div>
+                    <div className="status-metric-val">
+                      {snap?.fuel_range_km ? `${formatNum(snap.fuel_range_km, 0)} km` : '- km'}
+                    </div>
+
+                  </div>
+
+                  <div className="status-tile">
+                    <BatteryCharging className="status-tile-icon" style={{ color: '#22c55e' }} />
+                    <div className="status-battery-label"><span>HV-AKKU</span></div>
+                    <div className="status-battery-val" style={{ color: '#22c55e' }}>
+                      {snap?.soc_percent !== null && snap?.soc_percent !== undefined ? `${formatNum(snap.soc_percent, 0)}%` : '-%'}
+                      {snap?.ev_range_km ? ` (${formatNum(snap.ev_range_km, 0)} km)` : ''}
+                    </div>
+                    <div className="status-progress-track">
+                      <div className="status-progress-fill" style={{ width: `${Math.min(100, Math.max(0, snap?.soc_percent || 0))}%`, backgroundColor: '#22c55e' }} />
+                    </div>
+                    <div className="status-subtext">{snap?.charge_remaining_min ? `ca. ${snap.charge_remaining_min} Min. bis voll` : 'Optimaler Zustand'}</div>
+                  </div>
+
+                  <div className="status-tile">
+                    <Battery className="status-tile-icon" style={{ color: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981' }} />
+                    <div className="status-battery-label"><span>12V-AKKU</span></div>
+                    <div
+                      className="status-battery-val"
+                      style={{ color: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981' }}
+                    >
+                      {snap?.car_12v_percent !== null && snap?.car_12v_percent !== undefined ? `${snap.car_12v_percent}%` : '-%'}
+                    </div>
+
+                    <div className="status-progress-track">
+                      <div
+                        className="status-progress-fill"
+                        style={{
+                          width: `${Math.min(100, Math.max(0, snap?.car_12v_percent || 0))}%`,
+                          backgroundColor: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981',
+                        }}
+                      />
+                    </div>
+
+                    <div className="status-subtext">
+                      {is12vLow ? '⚠️ Bitte bald laden' : is12vMed ? 'Normale Entladung' : 'Optimaler Zustand'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Warnings or open items banner if any */}
+                {hasOpenItems && (
+                  <div className="status-warning-banner">
+                    <AlertTriangle size={15} style={{ color: '#ef4444', flexShrink: 0 }} />
+                    <div>
+                      Geöffnet: {openDoorsList.concat(openWindowsList).join(', ')}
+                    </div>
+                  </div>
+                )}
+                {hasWarnings && (
+                  <div className="status-warning-banner">
+                    <AlertTriangle size={15} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                    <div>
+                      Warnung:{' '}
+                      {[
+                        snap?.tire_pressure_warning && 'Reifendruck',
+                        snap?.washer_fluid_warning && 'Scheibenwaschwasser',
+                        snap?.smart_key_warning && 'Schlüsselbatterie',
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+
+            const renderSavingsCard = () => {
+              if (!stats) return null;
+              return (
+                <div className="savings-banner-card">
+                  <div className="savings-banner-title">Spar-Status</div>
+                  <div className={`savings-banner-box ${stats.breakEven.isEvCheaper ? '' : 'fuel-cheaper'}`}>
+                    <div className="savings-icon-box">
+                      <Zap size={20} />
+                    </div>
+                    <div>
+                      <div className="savings-title-text">
+                        {stats.breakEven.isEvCheaper ? 'AKTUELL SPAREND (Strom)' : 'AKTUELL SPAREND (Benzin)'}
+                      </div>
+                      <div className="savings-sub-text">
+                        Schwelle: {formatNum(stats.breakEven.breakEvenElectricityPricePerKwh, 3)} €/kWh |{' '}
+                        {stats.breakEven.isEvCheaper ? '+' : ''}
+                        {formatCur(stats.breakEven.savingsPer100Km)} / 100 km
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            };
+
+            const renderCostCard = () => {
+              if (!stats) return null;
+              return (
+                <div className="cost-card">
+                  <div className="cost-card-title">KOSTEN-VERGLEICH</div>
+                  <div className="cost-card-grid">
+                    {/* EV Column */}
+                    <div className="cost-col-ev">
+                      <div className="cost-col-header-ev">ELEKTROBETRIEB</div>
+                      <div className="cost-col-main-val-ev">{formatKmCur(stats.evMetrics.costPerKm)}</div>
+                      <div className="cost-col-sub-val">
+                        {formatCur(stats.evMetrics.costPer100Km)} / {formatNum(stats.evMetrics.kwhPer100Km, 1)} kWh/100 km
+                      </div>
+
+                      <div className="cost-details-list">
+                        <div className="cost-detail-row">
+                          <span>Realverbrauch</span>
+                          <strong>{formatNum(stats.evMetrics.kwhPer100Km, 1)} kWh/100 km</strong>
+                        </div>
+                        <div className="cost-detail-row">
+                          <span>Erfasste EV Distanz</span>
+                          <span>{formatNum(stats.evMetrics.totalEvKm, 0)} km</span>
+                        </div>
+                        <div className="cost-detail-row">
+                          <span>Geladene Energie</span>
+                          <span>{formatNum(stats.evMetrics.totalKwh, 1)} kWh</span>
+                        </div>
+                        <div className="cost-detail-row">
+                          <span>Ladekosten gesamt</span>
+                          <span>{formatCur(stats.evMetrics.totalCost)}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="cost-btn-details-ev"
+                        onClick={() => setShowSimulator(!showSimulator)}
+                      >
+                        DETAILS
+                      </button>
+                    </div>
+
+                    {/* Fuel Column */}
+                    <div className="cost-col-fuel">
+                      <div className="cost-col-header-fuel">VERBRENNERBETRIEB</div>
+                      <div className="cost-col-main-val-fuel">{formatKmCur(stats.fuelMetrics.costPerKm)}</div>
+                      <div className="cost-col-sub-val">
+                        {formatCur(stats.fuelMetrics.costPer100Km)} / {formatNum(stats.fuelMetrics.literPer100Km, 1)} L/100 km
+                      </div>
+
+                      <div className="cost-details-list">
+                        <div className="cost-detail-row">
+                          <span>Realverbrauch</span>
+                          <strong>{formatNum(stats.fuelMetrics.literPer100Km, 1)} L/100 km</strong>
+                        </div>
+                        <div className="cost-detail-row">
+                          <span>Erfasste Benzin Distanz</span>
+                          <span>{formatNum(stats.fuelMetrics.totalFuelKm, 0)} km</span>
+                        </div>
+                        <div className="cost-detail-row">
+                          <span>Erfasste Distanz</span>
+                          <span>{formatNum((stats.evMetrics.totalEvKm || 0) + (stats.fuelMetrics.totalFuelKm || 0), 0)} gesamt</span>
+                        </div>
+                        <div className="cost-detail-row">
+                          <span>Getankt gesamt</span>
+                          <span>{formatCur(stats.fuelMetrics.totalCost)}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="cost-btn-details-fuel"
+                        onClick={() => setShowSimulator(!showSimulator)}
+                      >
+                        DETAILS
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Interactive Break-Even Simulator when toggled */}
+                  {showSimulator && (
+                    <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <strong style={{ fontSize: '0.88rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <TrendingDown size={16} /> Interaktiver Break-Even Rechner
+                        </strong>
+                        <button
+                          type="button"
+                          onClick={() => setShowSimulator(false)}
+                          style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.8rem' }}
+                        >
+                          Schließen
+                        </button>
+                      </div>
+                      <div className="grid-2" style={{ marginBottom: '12px' }}>
+                        <div>
+                          <label htmlFor="sim-ev-price" style={{ fontSize: '0.75rem' }}>Strompreis (€/kWh)</label>
+                          <input
+                            id="sim-ev-price"
+                            className="price-input"
+                            type="text"
+                            inputMode="decimal"
+                            value={simEvPriceInput}
+                            onChange={(e) => setSimEvPriceInput(e.target.value)}
+                            onBlur={() => saveSimulatorPrices(simEvPriceInput, simFuelPriceInput)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') e.currentTarget.blur();
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="sim-fuel-price" style={{ fontSize: '0.75rem' }}>Spritpreis (€/L)</label>
+                          <input
+                            id="sim-fuel-price"
+                            className="price-input"
+                            type="text"
+                            inputMode="decimal"
+                            value={simFuelPriceInput}
+                            onChange={(e) => setSimFuelPriceInput(e.target.value)}
+                            onBlur={() => saveSimulatorPrices(simEvPriceInput, simFuelPriceInput)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') e.currentTarget.blur();
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          backgroundColor: 'var(--bg-input)',
+                          padding: '10px 14px',
+                          borderRadius: '8px',
+                          border: isSimEvCheaper ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.4)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          gap: '8px',
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '0.88rem', color: isSimEvCheaper ? 'var(--ev-color)' : '#f87171' }}>
+                            {isSimEvCheaper ? '✓ Ja, Laden ist günstiger!' : '✗ Nein, Benzinbetrieb ist günstiger!'}
+                          </div>
+                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                            Strom: {formatCur(simulatedEvCostPer100Km)} / 100km &nbsp;|&nbsp; Benzin: {formatCur(simulatedFuelCostPer100Km)} / 100km
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '1.05rem', fontWeight: 800, color: isSimEvCheaper ? 'var(--ev-color)' : '#f87171' }}>
+                            {isSimEvCheaper ? `-${formatCur(simulatedSavings)} Ersparnis` : `+${formatCur(-simulatedSavings)} teurer`}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>je 100 km Fahrt</div>
+                        </div>
                       </div>
                     </div>
                   )}
                 </div>
+              );
+            };
 
-                {/* 3. SPAR-STATUS CARD */}
-                {stats && (
-                  <div className="savings-banner-card">
-                    <div className="savings-banner-title">Spar-Status</div>
-                    <div className={`savings-banner-box ${stats.breakEven.isEvCheaper ? '' : 'fuel-cheaper'}`}>
-                      <div className="savings-icon-box">
-                        <Zap size={20} />
-                      </div>
-                      <div>
-                        <div className="savings-title-text">
-                          {stats.breakEven.isEvCheaper ? 'AKTUELL SPAREND (Strom)' : 'AKTUELL SPAREND (Benzin)'}
-                        </div>
-                        <div className="savings-sub-text">
-                          Schwelle: {formatNum(stats.breakEven.breakEvenElectricityPricePerKwh, 3)} €/kWh |{' '}
-                          {stats.breakEven.isEvCheaper ? '+' : ''}
-                          {formatCur(stats.breakEven.savingsPer100Km)} / 100 km
-                        </div>
-                      </div>
+            const renderParkCard = () => {
+              if (!snap?.location_lat || !snap?.location_lon) return null;
+              return (
+                <div className="park-card">
+                  <div
+                    className="park-card-header"
+                    onClick={() => setShowVehicleMap(!showVehicleMap)}
+                  >
+                    <div className="park-card-title">
+                      <MapPin size={16} style={{ color: '#94a3b8' }} />
+                      <span>
+                        GEPARKTE POS: {snap.location_lat.toFixed(5)}, {snap.location_lon.toFixed(5)}
+                      </span>
                     </div>
+                    {showVehicleMap ? <ChevronUp size={16} color="#94a3b8" /> : <ChevronDown size={16} color="#94a3b8" />}
                   </div>
-                )}
 
-                {/* 4. KOSTEN-VERGLEICH CARD */}
-                {stats && (
-                  <div className="cost-card">
-                    <div className="cost-card-title">KOSTEN-VERGLEICH</div>
-                    <div className="cost-card-grid">
-                      {/* EV Column */}
-                      <div className="cost-col-ev">
-                        <div className="cost-col-header-ev">ELEKTROBETRIEB</div>
-                        <div className="cost-col-main-val-ev">{formatKmCur(stats.evMetrics.costPerKm)}</div>
-                        <div className="cost-col-sub-val">
-                          {formatCur(stats.evMetrics.costPer100Km)} / {formatNum(stats.evMetrics.kwhPer100Km, 1)} kWh/100 km
-                        </div>
-
-                        <div className="cost-details-list">
-                          <div className="cost-detail-row">
-                            <span>Realverbrauch</span>
-                            <strong>{formatNum(stats.evMetrics.kwhPer100Km, 1)} kWh/100 km</strong>
-                          </div>
-                          <div className="cost-detail-row">
-                            <span>Erfasste EV Distanz</span>
-                            <span>{formatNum(stats.evMetrics.totalEvKm, 0)} km</span>
-                          </div>
-                          <div className="cost-detail-row">
-                            <span>Geladene Energie</span>
-                            <span>{formatNum(stats.evMetrics.totalKwh, 1)} kWh</span>
-                          </div>
-                          <div className="cost-detail-row">
-                            <span>Ladekosten gesamt</span>
-                            <span>{formatCur(stats.evMetrics.totalCost)}</span>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          className="cost-btn-details-ev"
-                          onClick={() => setShowSimulator(!showSimulator)}
-                        >
-                          DETAILS
-                        </button>
-                      </div>
-
-                      {/* Fuel Column */}
-                      <div className="cost-col-fuel">
-                        <div className="cost-col-header-fuel">VERBRENNERBETRIEB</div>
-                        <div className="cost-col-main-val-fuel">{formatKmCur(stats.fuelMetrics.costPerKm)}</div>
-                        <div className="cost-col-sub-val">
-                          {formatCur(stats.fuelMetrics.costPer100Km)} / {formatNum(stats.fuelMetrics.literPer100Km, 1)} L/100 km
-                        </div>
-
-                        <div className="cost-details-list">
-                          <div className="cost-detail-row">
-                            <span>Realverbrauch</span>
-                            <strong>{formatNum(stats.fuelMetrics.literPer100Km, 1)} L/100 km</strong>
-                          </div>
-                          <div className="cost-detail-row">
-                            <span>Erfasste Benzin Distanz</span>
-                            <span>{formatNum(stats.fuelMetrics.totalFuelKm, 0)} km</span>
-                          </div>
-                          <div className="cost-detail-row">
-                            <span>Erfasste Distanz</span>
-                            <span>{formatNum((stats.evMetrics.totalEvKm || 0) + (stats.fuelMetrics.totalFuelKm || 0), 0)} gesamt</span>
-                          </div>
-                          <div className="cost-detail-row">
-                            <span>Getankt gesamt</span>
-                            <span>{formatCur(stats.fuelMetrics.totalCost)}</span>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          className="cost-btn-details-fuel"
-                          onClick={() => setShowSimulator(!showSimulator)}
-                        >
-                          DETAILS
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Interactive Break-Even Simulator when toggled */}
-                    {showSimulator && (
-                      <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                          <strong style={{ fontSize: '0.88rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <TrendingDown size={16} /> Interaktiver Break-Even Rechner
-                          </strong>
-                          <button
-                            type="button"
-                            onClick={() => setShowSimulator(false)}
-                            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.8rem' }}
-                          >
-                            Schließen
-                          </button>
-                        </div>
-                        <div className="grid-2" style={{ marginBottom: '12px' }}>
-                          <div>
-                            <label htmlFor="sim-ev-price" style={{ fontSize: '0.75rem' }}>Strompreis (€/kWh)</label>
-                            <input
-                              id="sim-ev-price"
-                              className="price-input"
-                              type="text"
-                              inputMode="decimal"
-                              value={simEvPriceInput}
-                              onChange={(e) => setSimEvPriceInput(e.target.value)}
-                              onBlur={() => saveSimulatorPrices(simEvPriceInput, simFuelPriceInput)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') e.currentTarget.blur();
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <label htmlFor="sim-fuel-price" style={{ fontSize: '0.75rem' }}>Spritpreis (€/L)</label>
-                            <input
-                              id="sim-fuel-price"
-                              className="price-input"
-                              type="text"
-                              inputMode="decimal"
-                              value={simFuelPriceInput}
-                              onChange={(e) => setSimFuelPriceInput(e.target.value)}
-                              onBlur={() => saveSimulatorPrices(simEvPriceInput, simFuelPriceInput)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') e.currentTarget.blur();
-                              }}
-                            />
-                          </div>
-                        </div>
-                        <div
-                          style={{
-                            backgroundColor: 'var(--bg-input)',
-                            padding: '10px 14px',
-                            borderRadius: '8px',
-                            border: isSimEvCheaper ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.4)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            flexWrap: 'wrap',
-                            gap: '8px',
-                          }}
-                        >
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: '0.88rem', color: isSimEvCheaper ? 'var(--ev-color)' : '#f87171' }}>
-                              {isSimEvCheaper ? '✓ Ja, Laden ist günstiger!' : '✗ Nein, Benzinbetrieb ist günstiger!'}
-                            </div>
-                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                              Strom: {formatCur(simulatedEvCostPer100Km)} / 100km &nbsp;|&nbsp; Benzin: {formatCur(simulatedFuelCostPer100Km)} / 100km
-                            </div>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '1.05rem', fontWeight: 800, color: isSimEvCheaper ? 'var(--ev-color)' : '#f87171' }}>
-                              {isSimEvCheaper ? `-${formatCur(simulatedSavings)} Ersparnis` : `+${formatCur(-simulatedSavings)} teurer`}
-                            </div>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>je 100 km Fahrt</div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 5. GEPARKTE POSITION CARD */}
-                {snap?.location_lat && snap?.location_lon && (
-                  <div className="park-card">
-                    <div
-                      className="park-card-header"
+                  <div className="park-actions">
+                    <button
+                      type="button"
+                      className="park-btn"
                       onClick={() => setShowVehicleMap(!showVehicleMap)}
                     >
-                      <div className="park-card-title">
-                        <MapPin size={16} style={{ color: '#94a3b8' }} />
-                        <span>
-                          GEPARKTE POS: {snap.location_lat.toFixed(5)}, {snap.location_lon.toFixed(5)}
-                        </span>
-                      </div>
-                      {showVehicleMap ? <ChevronUp size={16} color="#94a3b8" /> : <ChevronDown size={16} color="#94a3b8" />}
-                    </div>
+                      <span>✣</span> {showVehicleMap ? 'Karte verbergen' : 'Karte anzeigen'}
+                    </button>
 
-                    <div className="park-actions">
-                      <button
-                        type="button"
-                        className="park-btn"
-                        onClick={() => setShowVehicleMap(!showVehicleMap)}
-                      >
-                        <span>✣</span> {showVehicleMap ? 'Karte verbergen' : 'Karte anzeigen'}
-                      </button>
-
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${snap.location_lat},${snap.location_lon}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="park-btn"
-                      >
-                        <ExternalLink size={13} /> In Maps öffnen
-                      </a>
-                    </div>
-
-                    {showVehicleMap && (
-                      <div style={{ marginTop: '12px', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--border)' }}>
-                        <iframe
-                          title="Fahrzeug Parkposition"
-                          width="100%"
-                          height="220"
-                          style={{ border: 0, display: 'block' }}
-                          src={`https://www.openstreetmap.org/export/embed.html?bbox=${snap.location_lon - 0.005}%2C${snap.location_lat - 0.003}%2C${snap.location_lon + 0.005}%2C${snap.location_lat + 0.003}&layer=mapnik&marker=${snap.location_lat}%2C${snap.location_lon}`}
-                        />
-                      </div>
-                    )}
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${snap.location_lat},${snap.location_lon}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="park-btn"
+                    >
+                      <ExternalLink size={13} /> In Maps öffnen
+                    </a>
                   </div>
-                )}
+
+                  {showVehicleMap && (
+                    <div style={{ marginTop: '12px', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                      <iframe
+                        title="Fahrzeug Parkposition"
+                        width="100%"
+                        height="220"
+                        style={{ border: 0, display: 'block' }}
+                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${snap.location_lon - 0.005}%2C${snap.location_lat - 0.003}%2C${snap.location_lon + 0.005}%2C${snap.location_lat + 0.003}&layer=mapnik&marker=${snap.location_lat}%2C${snap.location_lon}`}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            };
+
+            return (
+              <div className="dashboard-container">
+                {/* Mobile View (< 900px): Clean single-column mobile flow */}
+                <div className="dashboard-mobile">
+                  {renderControlCard()}
+                  {renderStatusCard(false)}
+                  {renderSavingsCard()}
+                  {renderCostCard()}
+                  {renderParkCard()}
+                </div>
+
+                {/* Desktop View (>= 900px): Separate Cockpit Desktop Layout */}
+                <div className="dashboard-desktop">
+                  {/* Top full-width Vehicle Overview with 4 metric tiles across */}
+                  {renderStatusCard(true)}
+
+                  {/* 2-Column Desktop Cockpit: Controls & Map on Left, Savings & Costs on Right */}
+                  <div className="dashboard-desktop-grid">
+                    <div className="dashboard-desktop-col-left">
+                      {renderControlCard()}
+                      {renderParkCard()}
+                    </div>
+                    <div className="dashboard-desktop-col-right">
+                      {renderSavingsCard()}
+                      {renderCostCard()}
+                    </div>
+                  </div>
+                </div>
               </div>
             );
           })()}
@@ -1927,15 +1962,14 @@ export function App() {
           <Zap size={20} />
           <span>Laden</span>
         </button>
-        <div
-          className={`mobile-tab-center ${activeTab === 'fuel' ? 'active' : ''}`}
+        <button
+          type="button"
+          className={`mobile-tab ${activeTab === 'fuel' ? 'active' : ''}`}
           onClick={() => setActiveTab('fuel')}
         >
-          <div className="mobile-tab-center-btn">
-            <Fuel size={21} color="#0f172a" />
-          </div>
+          <Fuel size={20} />
           <span>Tanken</span>
-        </div>
+        </button>
         <button
           type="button"
           className={`mobile-tab ${activeTab === 'history' ? 'active' : ''}`}

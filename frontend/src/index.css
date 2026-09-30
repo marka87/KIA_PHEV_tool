@@ -59,14 +59,13 @@ body {
   padding: 12px;
 }
 
-@media (min-width: 860px) {
+@media (min-width: 900px) {
   .container {
-    max-width: 1080px;
-    padding: 20px 24px;
+    max-width: 1240px;
+    padding: 24px 32px;
   }
 }
 
-/* Header */
 /* Header */
 .app-header {
   background-color: rgba(12, 14, 18, 0.95);
@@ -91,7 +90,8 @@ body {
 
 @media (min-width: 768px) {
   .header-content {
-    max-width: 1024px;
+    max-width: 1240px;
+    padding: 10px 32px;
     display: grid;
     grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 1fr);
   }
@@ -234,11 +234,11 @@ body {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   justify-content: space-around;
-  align-items: flex-end;
-  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  align-items: center;
+  padding: 4px 6px calc(4px + env(safe-area-inset-bottom, 0px));
   z-index: 150;
   box-sizing: border-box;
-  height: 62px;
+  height: 60px;
 }
 
 @media (min-width: 768px) {
@@ -255,59 +255,23 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  font-size: 0.68rem;
+  gap: 3px;
+  font-size: 0.7rem;
   font-weight: 500;
-  padding: 4px 2px;
+  padding: 6px 2px;
   cursor: pointer;
   flex: 1;
   min-width: 0;
-  transition: color 0.15s ease;
+  transition: color 0.15s ease, transform 0.1s ease;
+}
+
+.mobile-tab:active {
+  transform: scale(0.95);
 }
 
 .mobile-tab.active {
   color: #38bdf8;
-}
-
-.mobile-tab-center {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex: 1;
-  position: relative;
-  top: -8px;
-  gap: 2px;
-}
-
-.mobile-tab-center-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: #e2e8f0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  border: 3px solid #0c0e14;
-  color: #0f172a;
-  transition: transform 0.15s ease;
-}
-
-.mobile-tab-center:active .mobile-tab-center-btn {
-  transform: scale(0.92);
-}
-
-.mobile-tab-center span {
-  font-size: 0.68rem;
-  color: #64748b;
-  margin-top: 0;
-  font-weight: 500;
-}
-
-.mobile-tab-center.active span {
-  color: #38bdf8;
+  font-weight: 600;
 }
 
 .dashboard-details > summary {
@@ -507,46 +471,92 @@ body {
 }
 
 /* ========================================================================= */
-/* DASHBOARD SCREENSHOT-INSPIRED STYLING */
+/* DASHBOARD SCREENSHOT-INSPIRED STYLING (MOBILE & DESKTOP SEPARATE) */
 /* ========================================================================= */
 
-.dashboard-wrapper {
+.dashboard-container {
+  width: 100%;
+}
+
+/* Mobile View: Clean single-column vertical flow */
+.dashboard-mobile {
   display: flex;
   flex-direction: column;
   gap: 12px;
   width: 100%;
 }
 
-@media (min-width: 860px) {
-  .dashboard-wrapper {
+/* Desktop View: Dedicated Cockpit */
+.dashboard-desktop {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .dashboard-mobile {
+    display: none;
+  }
+
+  .dashboard-desktop {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+  }
+
+  .dashboard-desktop-grid {
     display: grid;
-    grid-template-columns: 1.05fr 1fr;
-    grid-template-areas:
-      "control savings"
-      "status  costs"
-      "park    costs";
-    gap: 16px;
+    grid-template-columns: 360px 1fr;
+    gap: 20px;
     align-items: start;
+    width: 100%;
   }
 
-  .control-card {
-    grid-area: control;
+  .dashboard-desktop-col-left {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
   }
 
-  .status-card {
-    grid-area: status;
+  .dashboard-desktop-col-right {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
   }
 
-  .savings-banner-card {
-    grid-area: savings;
+  .status-grid-desktop {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 14px !important;
+    border: none !important;
   }
 
-  .cost-card {
-    grid-area: costs;
+  .status-grid-desktop .status-tile {
+    min-height: 124px !important;
+    padding: 14px 16px !important;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 10px !important;
   }
 
-  .park-card {
-    grid-area: park;
+  .status-grid-desktop .status-metric-label,
+  .status-grid-desktop .status-battery-label {
+    font-size: 0.72rem !important;
+    letter-spacing: 0.06em !important;
+    color: #94a3b8 !important;
+  }
+
+  .status-grid-desktop .status-metric-val,
+  .status-grid-desktop .status-battery-val {
+    font-size: 1.35rem !important;
+    font-weight: 750 !important;
+    margin: 4px 0 !important;
+    white-space: nowrap !important;
+  }
+
+  .status-grid-desktop .status-subtext {
+    font-size: 0.75rem !important;
+    color: #94a3b8 !important;
+    white-space: nowrap !important;
   }
 }
 
