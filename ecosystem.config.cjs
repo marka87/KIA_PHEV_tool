@@ -14,10 +14,11 @@
 module.exports = {
   apps: [
     {
-      name: 'phev-tracker',
+      name: 'kia-tool',
       script: 'backend/dist/server.js',
       cwd: __dirname,
       instances: 1,
+      exec_mode: 'fork',
       autorestart: true,
       watch: false,
       max_memory_restart: '350M',
