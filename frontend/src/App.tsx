@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Zap,
   Fuel,
@@ -83,6 +83,8 @@ export function App() {
   const [chargeKwh, setChargeKwh] = useState('');
   const [chargeOdo, setChargeOdo] = useState('');
   const [chargeEvKm, setChargeEvKm] = useState('');
+  const [chargeQuelle, setChargeQuelle] = useState('zuhause');
+  const [chargePrice, setChargePrice] = useState('');
   const [chargeCalcOpen, setChargeCalcOpen] = useState(false);
   const [calcStartPct, setCalcStartPct] = useState(20);
   const [calcEndPct, setCalcEndPct] = useState(100);
@@ -92,6 +94,35 @@ export function App() {
 
   // Tariffs
   const [tariffs, setTariffs] = useState<Tariff[]>([]);
+
+  // Unique active tariffs for selection (newest validity per quelle)
+  const activeTariffs = useMemo(() => {
+    const map = new Map<string, Tariff>();
+    for (const t of tariffs) {
+      const key = t.quelle.toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, t);
+      }
+    }
+    return Array.from(map.values());
+  }, [tariffs]);
+
+  const activeTariffForQuelle = useMemo(() => {
+    return activeTariffs.find((t) => t.quelle.toLowerCase() === chargeQuelle.toLowerCase()) || null;
+  }, [activeTariffs, chargeQuelle]);
+
+  const calculatedCost = useMemo(() => {
+    const kwhVal = Number(chargeKwh.replace(',', '.'));
+    const priceVal = chargePrice
+      ? Number(chargePrice.replace(',', '.'))
+      : activeTariffForQuelle
+      ? activeTariffForQuelle.preis_pro_kwh
+      : NaN;
+    if (Number.isFinite(kwhVal) && kwhVal > 0 && Number.isFinite(priceVal) && priceVal > 0) {
+      return kwhVal * priceVal;
+    }
+    return null;
+  }, [chargeKwh, chargePrice, activeTariffForQuelle]);
 
   // Simulator state in Dashboard
   const [simEvPrice, setSimEvPrice] = useState<number>(0.28);
@@ -142,6 +173,7 @@ export function App() {
     checkPendingActions();
     loadDashboard();
     loadKiaStatus();
+    loadTariffs();
 
     return () => {
       window.removeEventListener('online', updateOnline);
@@ -253,6 +285,7 @@ export function App() {
       loadKiaStatus();
     }
     if (activeTab === 'charge') {
+      loadTariffs();
       if (!chargeOdo && stats?.latestSnapshot?.odometer_km) {
         setChargeOdo(Math.round(stats.latestSnapshot.odometer_km).toString());
       }
@@ -263,6 +296,23 @@ export function App() {
       }
     }
   }, [activeTab, stats]);
+
+  useEffect(() => {
+    if (tariffs.length > 0) {
+      const currentMatch = tariffs.find((t) => t.quelle.toLowerCase() === chargeQuelle.toLowerCase());
+      if (currentMatch) {
+        if (!chargePrice) {
+          setChargePrice(String(currentMatch.preis_pro_kwh).replace('.', ','));
+        }
+      } else if (chargeQuelle !== 'sonstige') {
+        const first = tariffs[0];
+        setChargeQuelle(first.quelle);
+        if (!chargePrice) {
+          setChargePrice(String(first.preis_pro_kwh).replace('.', ','));
+        }
+      }
+    }
+  }, [tariffs]);
 
   // Format Helpers
   const formatCur = (n: number) => n.toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
@@ -1225,24 +1275,99 @@ export function App() {
 
               <div className="grid-2">
                 <div className="form-group">
-                  <label>Ladequelle / Ort *</label>
-                  <select name="quelle" defaultValue="zuhause">
-                    <option value="zuhause">Zuhause (Haushaltsstrom)</option>
-                    <option value="vkw">VKW / vlotte Ladekarte</option>
-                    <option value="enbw">EnBW mobility+</option>
-                    <option value="sonstige">Sonstige Ladesäule</option>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ margin: 0 }}>Ladequelle / Ort *</label>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('settings')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        padding: 0,
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      Tarife verwalten ⚙️
+                    </button>
+                  </div>
+                  <select
+                    name="quelle"
+                    value={chargeQuelle}
+                    onChange={(e) => {
+                      const newQuelle = e.target.value;
+                      setChargeQuelle(newQuelle);
+                      const matched = activeTariffs.find((t) => t.quelle.toLowerCase() === newQuelle.toLowerCase());
+                      if (matched) {
+                        setChargePrice(String(matched.preis_pro_kwh).replace('.', ','));
+                      } else if (newQuelle === 'sonstige') {
+                        setChargePrice('');
+                      }
+                    }}
+                  >
+                    {activeTariffs.length === 0 ? (
+                      <>
+                        <option value="zuhause">Zuhause (Haushaltsstrom)</option>
+                        <option value="vkw">VKW / vlotte Ladekarte</option>
+                        <option value="enbw">EnBW mobility+</option>
+                        <option value="sonstige">Sonstige Ladesäule (Manuell)</option>
+                      </>
+                    ) : (
+                      <>
+                        {activeTariffs.map((t) => (
+                          <option key={t.id} value={t.quelle}>
+                            {t.bezeichnung} ({formatNum(t.preis_pro_kwh, 3)} €/kWh)
+                          </option>
+                        ))}
+                        {!activeTariffs.some((t) => t.quelle.toLowerCase() === 'sonstige') && (
+                          <option value="sonstige">Sonstige Ladesäule (Manuell)</option>
+                        )}
+                      </>
+                    )}
                   </select>
                 </div>
 
                 <div className="form-group">
-                  <label>Preis pro kWh (€) (Optional)</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ margin: 0 }}>Preis pro kWh (€)</label>
+                    {activeTariffForQuelle && (
+                      <button
+                        type="button"
+                        onClick={() => setChargePrice(String(activeTariffForQuelle.preis_pro_kwh).replace('.', ','))}
+                        style={{
+                          background: 'none',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          padding: '1px 6px',
+                          fontSize: '0.72rem',
+                          cursor: 'pointer',
+                          color: 'var(--ev-color)',
+                        }}
+                        title="Hinterlegten Tarif-Preis wiederherstellen"
+                      >
+                        ⚡ Standard ({formatNum(activeTariffForQuelle.preis_pro_kwh, 3)} €)
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="text"
                     name="preis_pro_kwh"
-                    placeholder="leer = Tarif der Quelle"
+                    placeholder={activeTariffForQuelle ? String(activeTariffForQuelle.preis_pro_kwh).replace('.', ',') : 'z.B. 0,35'}
                     inputMode="decimal"
+                    value={chargePrice}
+                    onChange={(e) => setChargePrice(e.target.value)}
                   />
-                  <div className="input-helper">Wenn leer, greift der hinterlegte Tarif</div>
+                  <div className="input-helper">
+                    {activeTariffForQuelle ? (
+                      <span style={{ color: 'var(--ev-color)' }}>
+                        ✓ Tarif aktiv: {formatNum(activeTariffForQuelle.preis_pro_kwh, 3)} €/kWh ({activeTariffForQuelle.bezeichnung})
+                      </span>
+                    ) : (
+                      <span>Kein Tarif hinterlegt – bitte Preis manuell eintragen</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1251,9 +1376,22 @@ export function App() {
                 <input
                   type="text"
                   name="gesamtkosten"
-                  placeholder="z.B. 2,10 (wird sonst auto-berechnet)"
+                  placeholder={
+                    calculatedCost != null
+                      ? `~ ${formatNum(calculatedCost, 2)} € (auto-berechnet)`
+                      : 'z.B. 2,10 (wird sonst auto-berechnet)'
+                  }
                   inputMode="decimal"
                 />
+                <div className="input-helper">
+                  {calculatedCost != null ? (
+                    <span>
+                      Auto-Berechnung: <strong style={{ color: 'var(--text-main)' }}>{formatCur(calculatedCost)}</strong> ({chargeKwh} kWh × {chargePrice || (activeTariffForQuelle ? formatNum(activeTariffForQuelle.preis_pro_kwh, 3) : '0')} €/kWh)
+                    </span>
+                  ) : (
+                    'Wird automatisch aus kWh × Preis berechnet, falls leer'
+                  )}
+                </div>
               </div>
 
               <div className="grid-2">
