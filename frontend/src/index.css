@@ -1,15 +1,16 @@
 :root {
   /* Flächen */
-  --bg-main: #0b0d10;
-  --bg-card: #12151b;
-  --bg-card-hover: #1a1e27;
-  --bg-input: #0b0d11;
+  --bg-main: #080e16;
+  --bg-card: #101a27;
+  --bg-card-hover: #162334;
+  --bg-input: #0a111b;
 
   /* Rahmen */
-  --border: rgba(255, 255, 255, 0.07);
+  --border: rgba(7, 136, 255, 0.16);
   --border-strong: rgba(255, 255, 255, 0.14);
   --border-color: var(--border);
-  --border-focus: #38bdf8;
+  --border-focus: #16cfff;
+  --accent-cyan: #16cfff;
 
   /* Text */
   --text-main: #f1f5f9;
@@ -18,13 +19,13 @@
   --text-subtle: #5f6a7d;
 
   /* Akzent: Blau = Interaktion, Grün = Strom, Gelb = Benzin */
-  --primary: #0284c7;
-  --primary-hover: #0369a1;
-  --ev-color: #22d16b;
-  --ev-bg: rgba(34, 209, 107, 0.1);
-  --fuel-color: #fbbf24;
-  --fuel-bg: rgba(251, 191, 36, 0.1);
-  --danger: #ef4444;
+  --primary: #0788ff;
+  --primary-hover: #0670d6;
+  --ev-color: #22d67a;
+  --ev-bg: rgba(34, 214, 122, 0.1);
+  --fuel-color: #ffb020;
+  --fuel-bg: rgba(255, 176, 32, 0.1);
+  --danger: #ff4658;
 
   /* Maße */
   --radius: 12px;
@@ -88,14 +89,14 @@ body {
 
 @media (min-width: 900px) {
   .container {
-    max-width: 1240px;
+    max-width: 1400px;
     padding: 24px 32px;
   }
 }
 
 /* Header */
 .app-header {
-  background-color: rgba(12, 14, 18, 0.95);
+  background-color: rgba(8, 14, 22, 0.95);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
@@ -142,14 +143,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #38bdf8;
+  color: var(--accent-cyan);
   flex-shrink: 0;
 }
 
 .badge-online-pill {
   background-color: rgba(34, 197, 94, 0.12);
   border: 1px solid rgba(34, 197, 94, 0.32);
-  color: #22c55e;
+  color: #22d67a;
   padding: 4px 10px;
   border-radius: 9999px;
   font-size: 0.76rem;
@@ -163,14 +164,14 @@ body {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #22c55e;
-  box-shadow: 0 0 6px #22c55e;
+  background-color: #22d67a;
+  box-shadow: 0 0 6px #22d67a;
 }
 
 .badge-offline-pill {
   background-color: rgba(239, 68, 68, 0.12);
   border: 1px solid rgba(239, 68, 68, 0.32);
-  color: #ef4444;
+  color: #ff4658;
   padding: 4px 10px;
   border-radius: 9999px;
   font-size: 0.76rem;
@@ -184,13 +185,13 @@ body {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #ef4444;
+  background-color: #ff4658;
 }
 
 .btn-sync-header {
   background-color: rgba(56, 189, 248, 0.12);
   border: 1px solid rgba(56, 189, 248, 0.35);
-  color: #38bdf8;
+  color: var(--accent-cyan);
   padding: 6px 12px;
   border-radius: 8px;
   font-size: 0.82rem;
@@ -205,7 +206,7 @@ body {
 
 .btn-sync-header:hover:not(:disabled) {
   background-color: rgba(56, 189, 248, 0.22);
-  border-color: #38bdf8;
+  border-color: var(--accent-cyan);
 }
 
 .btn-sync-header:disabled {
@@ -256,7 +257,7 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  background-color: #0c0e14;
+  background-color: #0a111b;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   justify-content: space-around;
@@ -296,7 +297,7 @@ body {
 }
 
 .mobile-tab.active {
-  color: #38bdf8;
+  color: var(--accent-cyan);
   font-weight: 600;
 }
 
@@ -318,7 +319,7 @@ body {
 .dashboard-details > summary::after {
   content: 'Öffnen';
   margin-left: auto;
-  color: #38bdf8;
+  color: var(--accent-cyan);
   font-size: 0.72rem;
   letter-spacing: 0;
   text-transform: none;
@@ -608,7 +609,7 @@ body {
   background: rgba(34, 197, 94, 0.12);
   border: 1px solid rgba(34, 197, 94, 0.32);
   border-radius: 12px;
-  color: #22c55e;
+  color: #22d67a;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -623,14 +624,14 @@ body {
 
 .control-btn-lock:hover:not(:disabled) {
   background: rgba(34, 197, 94, 0.22);
-  border-color: #22c55e;
+  border-color: #22d67a;
 }
 
 .control-btn-unlock {
   background: rgba(239, 68, 68, 0.12);
   border: 1px solid rgba(239, 68, 68, 0.32);
   border-radius: 12px;
-  color: #ef4444;
+  color: #ff4658;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -645,7 +646,7 @@ body {
 
 .control-btn-unlock:hover:not(:disabled) {
   background: rgba(239, 68, 68, 0.22);
-  border-color: #ef4444;
+  border-color: #ff4658;
 }
 
 .control-btn-charge {
@@ -851,7 +852,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #22c55e;
+  color: #22d67a;
   flex-shrink: 0;
 }
 
@@ -863,7 +864,7 @@ body {
 .savings-title-text {
   font-size: 0.95rem;
   font-weight: 600;
-  color: #22c55e;
+  color: #22d67a;
   line-height: 1.2;
 }
 
@@ -919,7 +920,7 @@ body {
 .cost-col-header-ev {
   font-size: 0.78rem;
   font-weight: 600;
-  color: #22c55e;
+  color: #22d67a;
   text-align: center;
 }
 
@@ -933,7 +934,7 @@ body {
 .cost-col-main-val-ev {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #22c55e;
+  color: #22d67a;
   text-align: center;
   margin-top: 4px;
   line-height: 1.2;
@@ -1038,7 +1039,7 @@ body {
   width: 100%;
   border: 1px solid rgba(34, 197, 94, 0.35);
   background: rgba(34, 197, 94, 0.08);
-  color: #22c55e;
+  color: #22d67a;
   border-radius: 8px;
   padding: 6px 0;
   font-size: 0.78rem;
@@ -1310,7 +1311,7 @@ input:focus, select:focus, textarea:focus {
 
 .quick-chip:hover {
   background: rgba(56, 189, 248, 0.15);
-  border-color: #38bdf8;
+  border-color: var(--accent-cyan);
   color: #ffffff;
 }
 
@@ -1348,14 +1349,14 @@ input:focus, select:focus, textarea:focus {
 
 .filter-chip.active {
   background: rgba(56, 189, 248, 0.16);
-  border-color: #38bdf8;
-  color: #38bdf8;
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
 }
 
 .filter-chip.active.chip-charge {
   background: rgba(34, 197, 94, 0.16);
-  border-color: #22c55e;
-  color: #22c55e;
+  border-color: #22d67a;
+  color: #22d67a;
 }
 
 .filter-chip.active.chip-fuel {
@@ -1389,7 +1390,7 @@ input:focus, select:focus, textarea:focus {
 /* Grün = Strom, Gelb = Benzin, Neutral = Werte ohne Zustand */
 /* ========================================================================= */
 
-.tile-icon-neutral { color: var(--text-muted); }
+.tile-icon-neutral { color: var(--accent-cyan); }
 .tile-icon-fuel    { color: var(--fuel-color); }
 .tile-icon-ev      { color: var(--ev-color); }
 
@@ -1399,11 +1400,11 @@ input:focus, select:focus, textarea:focus {
 
 .tile-bar-ev   { background-color: var(--ev-color); }
 .tile-bar-ok   { background-color: var(--ev-color); }
-.tile-bar-warn { background-color: #f59e0b; }
+.tile-bar-warn { background-color: #ffb020; }
 .tile-bar-bad  { background-color: var(--danger); }
 
 .tile-state-ok   { color: var(--ev-color); }
-.tile-state-warn { color: #f59e0b; }
+.tile-state-warn { color: #ffb020; }
 .tile-state-bad  { color: var(--danger); }
 
 /* ========================================================================= */
@@ -1635,4 +1636,36 @@ input:focus, select:focus, textarea:focus {
 
 .card-title-fuel {
   color: var(--fuel-color);
+}
+
+/* ========================================================================= */
+/* STORM BLUE: Laden-Button und Kostenvergleich */
+/* ========================================================================= */
+
+.btn-charge-start {
+  background: linear-gradient(135deg, #0788ff, #16cfff);
+  border: none;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.btn-charge-start:hover:not(:disabled) {
+  filter: brightness(1.08);
+  color: #ffffff;
+}
+
+.control-btn-charge.is-charging {
+  color: var(--fuel-color);
+  border-color: rgba(255, 176, 32, 0.4);
+}
+
+/* Elektroantrieb im Kostenvergleich: Blau/Cyan statt Grün */
+.cost-col-ev {
+  background: rgba(7, 136, 255, 0.07);
+  border-color: rgba(22, 207, 255, 0.25);
+}
+
+.cost-col-header-ev,
+.cost-col-main-val-ev {
+  color: var(--accent-cyan);
 }

@@ -662,7 +662,7 @@ export function App() {
 
                 <button
                   type="button"
-                  className="control-btn-charge"
+                  className={`control-btn-charge ${snap?.is_charging ? 'is-charging' : 'btn-charge-start'}`}
                   disabled={isRemoteLoading}
                   onClick={() => {
                     if (!kiaStatus?.configured) {
@@ -675,17 +675,13 @@ export function App() {
                       handleRemoteCommand({ action: 'start_charge' });
                     }
                   }}
-                  style={{
-                    color: snap?.is_charging ? '#f59e0b' : '#94a3b8',
-                    borderColor: snap?.is_charging ? 'rgba(245, 158, 11, 0.4)' : undefined,
-                  }}
                 >
                   {isRemoteLoading && remoteActionActive?.includes('charge') ? (
                     <RefreshCw size={15} className="spin" />
                   ) : (
                     <Power size={15} />
                   )}
-                  <span>{snap?.is_charging ? 'Laden Stoppen' : 'Laden Starten'}</span>
+                  <span>{snap?.is_charging ? 'Laden stoppen' : 'Laden starten'}</span>
                 </button>
               </div>
             );
@@ -796,7 +792,7 @@ export function App() {
                 {/* Warnings or open items banner if any */}
                 {hasOpenItems && (
                   <div className="status-warning-banner">
-                    <AlertTriangle size={15} style={{ color: '#ef4444', flexShrink: 0 }} />
+                    <AlertTriangle size={15} style={{ color: '#ff4658', flexShrink: 0 }} />
                     <div>
                       Geöffnet: {openDoorsList.concat(openWindowsList).join(', ')}
                     </div>
@@ -804,7 +800,7 @@ export function App() {
                 )}
                 {hasWarnings && (
                   <div className="status-warning-banner">
-                    <AlertTriangle size={15} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                    <AlertTriangle size={15} style={{ color: '#ffb020', flexShrink: 0 }} />
                     <div>
                       Warnung:{' '}
                       {[
@@ -1704,10 +1700,10 @@ export function App() {
                 if (item.type === 'snapshot') {
                   const s = item.data;
                   return (
-                    <div key={`snap-${s.id}`} className="list-item" style={{ borderLeft: '4px solid #38bdf8' }}>
+                    <div key={`snap-${s.id}`} className="list-item" style={{ borderLeft: '4px solid #16cfff' }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="badge" style={{ backgroundColor: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8' }}>📸 Tacho</span>
+                          <span className="badge" style={{ backgroundColor: 'rgba(56, 189, 248, 0.2)', color: '#16cfff' }}>📸 Tacho</span>
                           <span style={{ fontWeight: 600 }}>{formatNum(s.odometer_km, 0)} km</span>
                         </div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -1831,7 +1827,7 @@ export function App() {
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
                 <div className="card-title" style={{ margin: 0 }}>
-                  <RefreshCw size={18} color="#38bdf8" /> Kia Connect / UVO Telemetrie
+                  <RefreshCw size={18} color="#16cfff" /> Kia Connect / UVO Telemetrie
                 </div>
                 <span
                   className="badge"
