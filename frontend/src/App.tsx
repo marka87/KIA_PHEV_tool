@@ -1134,8 +1134,8 @@ export function App() {
 
             <form onSubmit={handleSaveCharge}>
               <div className="form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label style={{ margin: 0 }}>Geladene Menge in kWh *</label>
+                <div className="field-head">
+                  <label>Geladene Menge in kWh *</label>
                   <button
                     type="button"
                     onClick={() => {
@@ -1144,18 +1144,7 @@ export function App() {
                       }
                       setChargeCalcOpen(!chargeCalcOpen);
                     }}
-                    style={{
-                      background: 'none',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '6px',
-                      padding: '2px 8px',
-                      fontSize: '0.75rem',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      color: 'var(--ev-color)',
-                    }}
+                    className="chip-source chip-source-ev"
                   >
                     <Calculator size={13} /> {chargeCalcOpen ? 'Rechner schließen' : '🔋 Aus Akku-% berechnen'}
                   </button>
@@ -1273,20 +1262,12 @@ export function App() {
 
               <div className="grid-2">
                 <div className="form-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label style={{ margin: 0 }}>Ladequelle / Ort *</label>
+                  <div className="field-head">
+                    <label>Ladequelle / Ort *</label>
                     <button
                       type="button"
                       onClick={() => setActiveTab('settings')}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        fontSize: '0.75rem',
-                        cursor: 'pointer',
-                        padding: 0,
-                        textDecoration: 'underline',
-                      }}
+                      className="link-btn"
                     >
                       Tarife verwalten ⚙️
                     </button>
@@ -1328,21 +1309,13 @@ export function App() {
                 </div>
 
                 <div className="form-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label style={{ margin: 0 }}>Preis pro kWh (€)</label>
+                  <div className="field-head">
+                    <label>Preis pro kWh (€)</label>
                     {activeTariffForQuelle && (
                       <button
                         type="button"
                         onClick={() => setChargePrice(String(activeTariffForQuelle.preis_pro_kwh).replace('.', ','))}
-                        style={{
-                          background: 'none',
-                          border: '1px solid var(--border)',
-                          borderRadius: '6px',
-                          padding: '1px 6px',
-                          fontSize: '0.72rem',
-                          cursor: 'pointer',
-                          color: 'var(--ev-color)',
-                        }}
+                        className="chip-standard"
                         title="Hinterlegten Tarif-Preis wiederherstellen"
                       >
                         ⚡ Standard ({formatNum(activeTariffForQuelle.preis_pro_kwh, 3)} €)
@@ -1369,30 +1342,66 @@ export function App() {
                 </div>
               </div>
 
-              <div className="form-group">
-                <label>Gesamtkosten (€) (Optional)</label>
-                <input
-                  type="text"
-                  name="gesamtkosten"
-                  placeholder={
-                    calculatedCost != null
-                      ? `~ ${formatNum(calculatedCost, 2)} € (auto-berechnet)`
-                      : 'z.B. 2,10 (wird sonst auto-berechnet)'
-                  }
-                  inputMode="decimal"
-                />
-                <div className="input-helper">
-                  {calculatedCost != null ? (
-                    <span>
-                      Auto-Berechnung: <strong style={{ color: 'var(--text-main)' }}>{formatCur(calculatedCost)}</strong> ({chargeKwh} kWh × {chargePrice || (activeTariffForQuelle ? formatNum(activeTariffForQuelle.preis_pro_kwh, 3) : '0')} €/kWh)
-                    </span>
-                  ) : (
-                    'Wird automatisch aus kWh × Preis berechnet, falls leer'
-                  )}
+              <div className="grid-2">
+                <div className="form-group">
+                  <div className="field-head">
+                    <label>Gesamtkilometerstand (Tacho)</label>
+                    {stats?.latestSnapshot?.odometer_km && (
+                      <button
+                        type="button"
+                        onClick={() => setChargeOdo(Math.round(stats.latestSnapshot!.odometer_km).toString())}
+                        className="chip-source"
+                      >
+                        <Gauge size={12} /> Kia Tacho ({Math.round(stats.latestSnapshot.odometer_km).toLocaleString('de-AT')} km)
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    name="odometer_km"
+                    placeholder="z.B. 45200"
+                    inputMode="numeric"
+                    value={chargeOdo}
+                    onChange={(e) => setChargeOdo(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Datum & Uhrzeit</label>
+                  <input
+                    type="datetime-local"
+                    name="zeitpunkt"
+                    defaultValue={new Date().toISOString().slice(0, 16)}
+                  />
                 </div>
               </div>
 
-              <div className="grid-2">
+              <details className="form-optional">
+                <summary>Weitere Angaben (optional)</summary>
+
+                <div className="form-group">
+                  <label>Gesamtkosten (€)</label>
+                  <input
+                    type="text"
+                    name="gesamtkosten"
+                    placeholder={
+                      calculatedCost != null
+                        ? `~ ${formatNum(calculatedCost, 2)} € (auto-berechnet)`
+                        : 'z.B. 2,10 (wird sonst auto-berechnet)'
+                    }
+                    inputMode="decimal"
+                  />
+                  <div className="input-helper">
+                    {calculatedCost != null ? (
+                      <span>
+                        Auto-Berechnung: <strong>{formatCur(calculatedCost)}</strong> ({chargeKwh} kWh × {chargePrice || (activeTariffForQuelle ? formatNum(activeTariffForQuelle.preis_pro_kwh, 3) : '0')} €/kWh)
+                      </span>
+                    ) : (
+                      'Wird automatisch aus kWh × Preis berechnet, falls leer'
+                    )}
+                  </div>
+                </div>
+
                 <div className="form-group">
                   <label>Elektrisch gefahrene km (EV-Trip)</label>
                   <input
@@ -1407,56 +1416,13 @@ export function App() {
                 </div>
 
                 <div className="form-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label style={{ margin: 0 }}>Gesamtkilometerstand (Tacho)</label>
-                    {stats?.latestSnapshot?.odometer_km && (
-                      <button
-                        type="button"
-                        onClick={() => setChargeOdo(Math.round(stats.latestSnapshot!.odometer_km).toString())}
-                        style={{
-                          background: 'none',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '6px',
-                          padding: '2px 8px',
-                          fontSize: '0.75rem',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          color: 'var(--primary)',
-                        }}
-                      >
-                        ⚡ Kia Tacho ({Math.round(stats.latestSnapshot.odometer_km).toLocaleString('de-AT')} km)
-                      </button>
-                    )}
-                  </div>
-                  <input
-                    type="text"
-                    name="odometer_km"
-                    placeholder="z.B. 45200"
-                    inputMode="numeric"
-                    value={chargeOdo}
-                    onChange={(e) => setChargeOdo(e.target.value)}
-                  />
+                  <label>Bemerkung / Standort</label>
+                  <input type="text" name="standort" placeholder="z.B. Wallbox Garage oder Filiale Dornbirn" />
                 </div>
-              </div>
+              </details>
 
-              <div className="form-group">
-                <label>Datum & Uhrzeit</label>
-                <input
-                  type="datetime-local"
-                  name="zeitpunkt"
-                  defaultValue={new Date().toISOString().slice(0, 16)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Bemerkung / Standort</label>
-                <input type="text" name="standort" placeholder="z.B. Wallbox Garage oder Filiale Dornbirn" />
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
-                <button type="submit" className="btn btn-primary" style={{ backgroundColor: 'var(--ev-color)' }}>
+              <div className="form-actions">
+                <button type="submit" className="btn btn-primary btn-save-ev">
                   <CheckCircle2 size={18} /> Ladevorgang speichern
                 </button>
                 <button type="button" className="btn btn-secondary" onClick={() => setActiveTab('dashboard')}>
