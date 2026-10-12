@@ -1540,3 +1540,33 @@ input:focus, select:focus, textarea:focus {
 .btn-save-ev:hover {
   filter: brightness(1.08);
 }
+
+/* Checkbox-Zeile (z. B. "Vollgetankt") */
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.checkbox-row input[type='checkbox'] {
+  width: auto;
+  accent-color: var(--fuel-color);
+  margin: 0;
+}
+
+.checkbox-row label {
+  margin: 0;
+  cursor: pointer;
+  color: var(--text-main);
+}
+
+/* Speichern-Button Tanken */
+.btn-save-fuel {
+  background-color: var(--fuel-color);
+  color: #0b0d11;
+}
+
+.btn-save-fuel:hover {
+  filter: brightness(1.08);
+}

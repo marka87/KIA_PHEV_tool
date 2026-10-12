@@ -1497,26 +1497,15 @@ export function App() {
                 </div>
 
                 <div className="form-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label style={{ margin: 0 }}>Gesamtkilometerstand (Tacho)</label>
+                  <div className="field-head">
+                    <label>Gesamtkilometerstand (Tacho)</label>
                     {stats?.latestSnapshot?.odometer_km && (
                       <button
                         type="button"
                         onClick={() => setFuelOdo(Math.round(stats.latestSnapshot!.odometer_km).toString())}
-                        style={{
-                          background: 'none',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '6px',
-                          padding: '2px 8px',
-                          fontSize: '0.75rem',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          color: 'var(--primary)',
-                        }}
+                        className="chip-source"
                       >
-                        ⚡ Kia Tacho ({Math.round(stats.latestSnapshot.odometer_km).toLocaleString('de-AT')} km)
+                        <Gauge size={12} /> Kia Tacho ({Math.round(stats.latestSnapshot.odometer_km).toLocaleString('de-AT')} km)
                       </button>
                     )}
                   </div>
@@ -1531,9 +1520,9 @@ export function App() {
                 </div>
               </div>
 
-              <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input type="checkbox" name="vollgetankt" id="vollgetankt" defaultChecked style={{ width: 'auto' }} />
-                <label htmlFor="vollgetankt" style={{ margin: 0, cursor: 'pointer' }}>Vollgetankt (für präzise Verbrauchsrechnung)</label>
+              <div className="checkbox-row">
+                <input type="checkbox" name="vollgetankt" id="vollgetankt" defaultChecked />
+                <label htmlFor="vollgetankt">Vollgetankt (für präzise Verbrauchsrechnung)</label>
               </div>
 
               <div className="form-group">
@@ -1545,8 +1534,8 @@ export function App() {
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
-                <button type="submit" className="btn btn-primary" style={{ backgroundColor: 'var(--fuel-color)' }}>
+              <div className="form-actions">
+                <button type="submit" className="btn btn-save-fuel">
                   <CheckCircle2 size={18} /> Tankvorgang speichern
                 </button>
                 <button type="button" className="btn btn-secondary" onClick={() => setActiveTab('dashboard')}>
