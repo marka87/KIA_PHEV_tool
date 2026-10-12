@@ -1127,12 +1127,14 @@ export function App() {
         {/* TAB: CHARGING FORM */}
         {/* ========================================================================= */}
         {activeTab === 'charge' && (
-          <div className="card" style={{ maxWidth: '600px', margin: '0 auto' }}>
-            <div className="card-title" style={{ color: 'var(--ev-color)' }}>
-              <Zap size={20} /> Ladevorgang erfassen
+          <div className="card form-card">
+            <div className="card-title card-title-ev">
+              <Zap size={18} /> Ladevorgang erfassen
             </div>
 
             <form onSubmit={handleSaveCharge}>
+              <section className="form-section">
+                <h3 className="form-section-title">Ladedaten</h3>
               <div className="form-group">
                 <div className="field-head">
                   <label>Geladene Menge in kWh *</label>
@@ -1260,6 +1262,10 @@ export function App() {
                 <div className="input-helper">Vom VKW-Display / Zähler oder oben per Akku-% berechnen</div>
               </div>
 
+              </section>
+
+              <section className="form-section">
+                <h3 className="form-section-title">Ladetarif und Kosten</h3>
               <div className="grid-2">
                 <div className="form-group">
                   <div className="field-head">
@@ -1342,6 +1348,17 @@ export function App() {
                 </div>
               </div>
 
+              {calculatedCost != null && (
+                <div className="cost-summary">
+                  <span className="cost-summary-label">Gesamtkosten</span>
+                  <strong className="cost-summary-value">{formatCur(calculatedCost)}</strong>
+                  <span className="cost-summary-sub">{chargeKwh} kWh × {chargePrice || (activeTariffForQuelle ? formatNum(activeTariffForQuelle.preis_pro_kwh, 3) : '0')} €/kWh</span>
+                </div>
+              )}
+              </section>
+
+              <section className="form-section">
+                <h3 className="form-section-title">Fahrzeugdaten</h3>
               <div className="grid-2">
                 <div className="form-group">
                   <div className="field-head">
@@ -1376,8 +1393,10 @@ export function App() {
                 </div>
               </div>
 
+              </section>
+
               <details className="form-optional">
-                <summary>Weitere Angaben (optional)</summary>
+                <summary>Weitere Angaben <span className="badge-optional">Optional</span></summary>
 
                 <div className="form-group">
                   <label>Gesamtkosten (€)</label>
@@ -1391,15 +1410,7 @@ export function App() {
                     }
                     inputMode="decimal"
                   />
-                  <div className="input-helper">
-                    {calculatedCost != null ? (
-                      <span>
-                        Auto-Berechnung: <strong>{formatCur(calculatedCost)}</strong> ({chargeKwh} kWh × {chargePrice || (activeTariffForQuelle ? formatNum(activeTariffForQuelle.preis_pro_kwh, 3) : '0')} €/kWh)
-                      </span>
-                    ) : (
-                      'Wird automatisch aus kWh × Preis berechnet, falls leer'
-                    )}
-                  </div>
+                  <div className="input-helper">Leer lassen für die automatische Berechnung</div>
                 </div>
 
                 <div className="form-group">

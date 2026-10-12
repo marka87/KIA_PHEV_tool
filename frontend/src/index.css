@@ -1,7 +1,7 @@
 :root {
   /* Flächen */
-  --bg-main: #0b0d11;
-  --bg-card: #13161d;
+  --bg-main: #0b0d10;
+  --bg-card: #12151b;
   --bg-card-hover: #1a1e27;
   --bg-input: #0b0d11;
 
@@ -20,8 +20,8 @@
   /* Akzent: Blau = Interaktion, Grün = Strom, Gelb = Benzin */
   --primary: #0284c7;
   --primary-hover: #0369a1;
-  --ev-color: #22c55e;
-  --ev-bg: rgba(34, 197, 94, 0.1);
+  --ev-color: #22d16b;
+  --ev-bg: rgba(34, 209, 107, 0.1);
   --fuel-color: #fbbf24;
   --fuel-bg: rgba(251, 191, 36, 0.1);
   --danger: #ef4444;
@@ -1557,4 +1557,78 @@ input:focus, select:focus, textarea:focus {
 
 .btn-save-fuel:hover {
   filter: brightness(1.08);
+}
+
+/* ========================================================================= */
+/* FORMULAR-LAYOUT (Ladung) */
+/* ========================================================================= */
+
+.form-card {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+@media (min-width: 900px) {
+  .form-card {
+    padding: 28px 32px;
+  }
+}
+
+.card-title-ev {
+  color: var(--ev-color);
+}
+
+.form-section {
+  margin-bottom: var(--space-5);
+}
+
+.form-section-title {
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--text-subtle);
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Kostenübersicht (grün, dezent) */
+.cost-summary {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 2px var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin: var(--space-2) 0 var(--space-4);
+  background: rgba(34, 209, 107, 0.07);
+  border: 1px solid rgba(34, 209, 107, 0.22);
+  border-radius: var(--radius-sm);
+}
+
+.cost-summary-label {
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+
+.cost-summary-value {
+  font-size: var(--font-lg);
+  font-weight: 600;
+  color: var(--ev-color);
+  text-align: right;
+}
+
+.cost-summary-sub {
+  grid-column: 1 / -1;
+  font-size: var(--font-xs);
+  color: var(--text-subtle);
+}
+
+.badge-optional {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-subtle);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-left: var(--space-2);
 }
