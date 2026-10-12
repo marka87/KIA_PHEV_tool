@@ -2,21 +2,22 @@
   /* Flächen */
   --bg-main: #080e16;
   --bg-card: #101a27;
-  --bg-card-hover: #162334;
+  --bg-card-hover: #162232;
   --bg-input: #0a111b;
 
   /* Rahmen */
-  --border: rgba(7, 136, 255, 0.16);
-  --border-strong: rgba(255, 255, 255, 0.14);
+  --border: #263548;
+  --border-strong: #34465e;
   --border-color: var(--border);
   --border-focus: #16cfff;
   --accent-cyan: #16cfff;
 
   /* Text */
-  --text-main: #f1f5f9;
+  --text-main: #f2f6fc;
   --text-primary: var(--text-main);
-  --text-muted: #8b95a7;
-  --text-subtle: #5f6a7d;
+  --text-muted: #9aadc5;
+  --text-subtle: #7587a0;
+  --violet: #a56bff;
 
   /* Akzent: Blau = Interaktion, Grün = Strom, Gelb = Benzin */
   --primary: #0788ff;
@@ -1669,3 +1670,6 @@ input:focus, select:focus, textarea:focus {
 .cost-col-main-val-ev {
   color: var(--accent-cyan);
 }
+
+/* Violett: 12-V-Akku und ergänzende Telemetrie */
+.tile-icon-violet { color: var(--violet); }

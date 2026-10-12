@@ -432,7 +432,7 @@ export function App() {
     if (isKiaSyncing) return;
     setIsKiaSyncing(true);
     if (force) {
-      showToast('📡 Live-Abfrage: Fahrzeug wird geweckt (dauert ca. 20-30 Sek.)...', 'warn');
+      showToast('Live-Abfrage: Fahrzeug wird geweckt (dauert ca. 20-30 Sek.)...', 'warn');
     }
     try {
       const res = await syncKiaConnect(force);
@@ -766,7 +766,7 @@ export function App() {
                   </div>
 
                   <div className="status-tile">
-                    <Battery className={`status-tile-icon ${is12vLow ? 'tile-state-bad' : is12vMed ? 'tile-state-warn' : 'tile-state-ok'}`} />
+                    <Battery className="status-tile-icon tile-icon-violet" />
                     <div className="status-battery-label"><span>12V-AKKU</span></div>
                     <div
                       className={`status-battery-val ${is12vLow ? 'tile-state-bad' : is12vMed ? 'tile-state-warn' : 'tile-state-ok'}`}
@@ -784,7 +784,7 @@ export function App() {
                     </div>
 
                     <div className="status-subtext">
-                      {is12vLow ? '⚠️ Bitte bald laden' : is12vMed ? 'Normale Entladung' : 'Optimaler Zustand'}
+                      {is12vLow ? 'Bitte bald laden' : is12vMed ? 'Normale Entladung' : 'Optimaler Zustand'}
                     </div>
                   </div>
                 </div>
@@ -1023,7 +1023,7 @@ export function App() {
                       className="park-btn"
                       onClick={() => setShowVehicleMap(!showVehicleMap)}
                     >
-                      <span>✣</span> {showVehicleMap ? 'Karte verbergen' : 'Karte anzeigen'}
+                      {showVehicleMap ? 'Karte verbergen' : 'Karte anzeigen'}
                     </button>
 
                     <a
@@ -1108,7 +1108,7 @@ export function App() {
                     }}
                     className="chip-source chip-source-ev"
                   >
-                    <Calculator size={13} /> {chargeCalcOpen ? 'Rechner schließen' : '🔋 Aus Akku-% berechnen'}
+                    <Calculator size={13} /> {chargeCalcOpen ? 'Rechner schließen' : 'Aus Akku-% berechnen'}
                   </button>
                 </div>
 
@@ -1123,10 +1123,10 @@ export function App() {
                     }}
                   >
                     <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--ev-color)', marginBottom: '4px' }}>
-                      🔋 Lade-Rechner (inkl. ~14% Ladeverlust)
+                      Lade-Rechner (inkl. ~14% Ladeverlust)
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                      Kia Ceed PHEV Akku: 8,9 kWh. Wegen Wandlungsverlusten (AC➔DC) zieht das Auto ab Steckdose ca. 8,3 kWh für 100%.
+                      Kia Ceed PHEV Akku: 8,9 kWh. Wegen Wandlungsverlusten (ACDC) zieht das Auto ab Steckdose ca. 8,3 kWh für 100%.
                     </div>
                     <div className="grid-2" style={{ gap: '10px', marginBottom: '8px' }}>
                       <div>
@@ -1154,7 +1154,7 @@ export function App() {
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
                       <span style={{ color: 'var(--text-muted)' }}>
-                        Netto: +{Math.max(0, calcEndPct - calcStartPct)}% ➔ ab Steckdose: <strong style={{ color: 'var(--text-primary)' }}>{((Math.max(0, calcEndPct - calcStartPct) / 100) * 8.3).toFixed(2).replace('.', ',')} kWh</strong>
+                        Netto: +{Math.max(0, calcEndPct - calcStartPct)}% ab Steckdose: <strong style={{ color: 'var(--text-primary)' }}>{((Math.max(0, calcEndPct - calcStartPct) / 100) * 8.3).toFixed(2).replace('.', ',')} kWh</strong>
                       </span>
                       <button
                         type="button"
@@ -1200,7 +1200,7 @@ export function App() {
                         onClick={() => setChargeKwh(needed)}
                         className="quick-chip"
                       >
-                        ⚡ Auf 100% (~{needed} kWh)
+                        Auf 100% (~{needed} kWh)
                       </button>
                     );
                   })()}
@@ -1209,7 +1209,7 @@ export function App() {
                     onClick={() => setChargeKwh('8,3')}
                     className="quick-chip"
                   >
-                    🔋 100% Voll (8,3 kWh)
+                    100% Voll (8,3 kWh)
                   </button>
                   <button
                     type="button"
@@ -1235,7 +1235,7 @@ export function App() {
                       onClick={() => setActiveTab('settings')}
                       className="link-btn"
                     >
-                      Tarife verwalten ⚙️
+                      Tarife verwalten 
                     </button>
                   </div>
                   <select
@@ -1284,7 +1284,7 @@ export function App() {
                         className="chip-standard"
                         title="Hinterlegten Tarif-Preis wiederherstellen"
                       >
-                        ⚡ Standard ({formatNum(activeTariffForQuelle.preis_pro_kwh, 3)} €)
+                        Standard ({formatNum(activeTariffForQuelle.preis_pro_kwh, 3)} €)
                       </button>
                     )}
                   </div>
@@ -1546,19 +1546,19 @@ export function App() {
                   className={`filter-chip chip-charge ${historyFilter === 'charge' ? 'active' : ''}`}
                   onClick={() => setHistoryFilter('charge')}
                 >
-                  ⚡ Ladungen ({chargingList.length})
+                  Ladungen ({chargingList.length})
                 </button>
                 <button
                   className={`filter-chip chip-fuel ${historyFilter === 'fuel' ? 'active' : ''}`}
                   onClick={() => setHistoryFilter('fuel')}
                 >
-                  ⛽ Tanken ({fuelList.length})
+                  Tanken ({fuelList.length})
                 </button>
                 <button
                   className={`filter-chip chip-snapshot ${historyFilter === 'snapshot' ? 'active' : ''}`}
                   onClick={() => setHistoryFilter('snapshot')}
                 >
-                  📸 Snapshots ({snapshotList.length})
+                  Snapshots ({snapshotList.length})
                 </button>
               </div>
 
@@ -1568,7 +1568,7 @@ export function App() {
                   onClick={() => setHistorySortOrder(historySortOrder === 'desc' ? 'asc' : 'desc')}
                   title="Nach Datum sortieren"
                 >
-                  📅 {historySortOrder === 'desc' ? 'Neueste ⬇️' : 'Älteste ⬆️'}
+                  {historySortOrder === 'desc' ? 'Neueste ' : 'Älteste '}
                 </button>
 
                 <button className="filter-chip" onClick={loadHistory} title="Aktualisieren">
@@ -1624,7 +1624,7 @@ export function App() {
                     <div key={`charge-${c.id}`} className="list-item" style={{ borderLeft: '4px solid var(--ev-color)' }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="badge badge-ev">⚡ Ladung</span>
+                          <span className="badge badge-ev">Ladung</span>
                           <span style={{ fontWeight: 600 }}>{formatNum(c.kwh, 2)} kWh</span>
                           <span style={{ color: 'var(--text-muted)' }}>({c.quelle})</span>
                         </div>
@@ -1664,7 +1664,7 @@ export function App() {
                     <div key={`fuel-${f.id}`} className="list-item" style={{ borderLeft: '4px solid var(--fuel-color)' }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="badge badge-fuel">⛽ Tanken</span>
+                          <span className="badge badge-fuel">Tanken</span>
                           <span style={{ fontWeight: 600 }}>{formatNum(f.liter, 2)} L</span>
                           <span style={{ color: 'var(--text-muted)' }}>({f.tankstelle})</span>
                         </div>
@@ -1703,7 +1703,7 @@ export function App() {
                     <div key={`snap-${s.id}`} className="list-item" style={{ borderLeft: '4px solid #16cfff' }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="badge" style={{ backgroundColor: 'rgba(56, 189, 248, 0.2)', color: '#16cfff' }}>📸 Tacho</span>
+                          <span className="badge" style={{ backgroundColor: 'rgba(56, 189, 248, 0.2)', color: '#16cfff' }}>Tacho</span>
                           <span style={{ fontWeight: 600 }}>{formatNum(s.odometer_km, 0)} km</span>
                         </div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -1836,7 +1836,7 @@ export function App() {
                     color: kiaStatus?.configured ? '#34d399' : '#fbbf24',
                   }}
                 >
-                  {kiaStatus?.configured ? `🟢 Verbunden (${kiaStatus.username})` : '🟡 Nicht eingerichtet'}
+                  {kiaStatus?.configured ? `Verbunden (${kiaStatus.username})` : 'Nicht eingerichtet'}
                 </span>
               </div>
 
@@ -1865,7 +1865,7 @@ export function App() {
                   disabled={isKiaSyncing}
                   title="Weckt das Auto auf für Echtzeitdaten"
                 >
-                  📡 Live-Fahrzeugabfrage erzwingen
+                  Live-Fahrzeugabfrage erzwingen
                 </button>
               </div>
 
