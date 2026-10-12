@@ -775,7 +775,7 @@ export function App() {
                 <div className={`status-grid status-grid-tiles ${isDesktop ? 'status-grid-desktop' : ''}`}>
                   {/* Left Column: Tacho & HV-Akku */}
                   <div className="status-tile">
-                    <Gauge size={22} style={{ color: '#cbd5e1' }} />
+                    <Gauge size={22} className="tile-icon-neutral" />
                     <div className="status-metric-label">TACHO</div>
                     <div className="status-metric-val">
                       {formatNum(snap?.odometer_km || 0, 0)} km
@@ -784,7 +784,7 @@ export function App() {
                   </div>
 
                   <div className="status-tile">
-                    <Fuel size={22} style={{ color: '#fbbf24' }} />
+                    <Fuel size={22} className="tile-icon-fuel" />
                     <div className="status-metric-label">REICHWEITE (BENZIN)</div>
                     <div className="status-metric-val">
                       {snap?.fuel_range_km ? `${formatNum(snap.fuel_range_km, 0)} km` : '- km'}
@@ -793,34 +793,32 @@ export function App() {
                   </div>
 
                   <div className="status-tile">
-                    <BatteryCharging className="status-tile-icon" style={{ color: '#22c55e' }} />
+                    <BatteryCharging className="status-tile-icon tile-icon-ev" />
                     <div className="status-battery-label"><span>HV-AKKU</span></div>
-                    <div className="status-battery-val" style={{ color: '#22c55e' }}>
+                    <div className="status-battery-val tile-value-ev">
                       {snap?.soc_percent !== null && snap?.soc_percent !== undefined ? `${formatNum(snap.soc_percent, 0)}%` : '-%'}
                       {snap?.ev_range_km ? ` (${formatNum(snap.ev_range_km, 0)} km)` : ''}
                     </div>
                     <div className="status-progress-track">
-                      <div className="status-progress-fill" style={{ width: `${Math.min(100, Math.max(0, snap?.soc_percent || 0))}%`, backgroundColor: '#22c55e' }} />
+                      <div className="status-progress-fill tile-bar-ev" style={{ width: `${Math.min(100, Math.max(0, snap?.soc_percent || 0))}%` }} />
                     </div>
                     <div className="status-subtext">{snap?.charge_remaining_min ? `ca. ${snap.charge_remaining_min} Min. bis voll` : 'Optimaler Zustand'}</div>
                   </div>
 
                   <div className="status-tile">
-                    <Battery className="status-tile-icon" style={{ color: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981' }} />
+                    <Battery className={`status-tile-icon ${is12vLow ? 'tile-state-bad' : is12vMed ? 'tile-state-warn' : 'tile-state-ok'}`} />
                     <div className="status-battery-label"><span>12V-AKKU</span></div>
                     <div
-                      className="status-battery-val"
-                      style={{ color: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981' }}
+                      className={`status-battery-val ${is12vLow ? 'tile-state-bad' : is12vMed ? 'tile-state-warn' : 'tile-state-ok'}`}
                     >
                       {snap?.car_12v_percent !== null && snap?.car_12v_percent !== undefined ? `${snap.car_12v_percent}%` : '-%'}
                     </div>
 
                     <div className="status-progress-track">
                       <div
-                        className="status-progress-fill"
+                        className={`status-progress-fill ${is12vLow ? 'tile-bar-bad' : is12vMed ? 'tile-bar-warn' : 'tile-bar-ok'}`}
                         style={{
                           width: `${Math.min(100, Math.max(0, snap?.car_12v_percent || 0))}%`,
-                          backgroundColor: is12vLow ? '#ef4444' : is12vMed ? '#f59e0b' : '#10b981',
                         }}
                       />
                     </div>
@@ -1425,7 +1423,7 @@ export function App() {
                           display: 'flex',
                           alignItems: 'center',
                           gap: '4px',
-                          color: 'var(--primary-color)',
+                          color: 'var(--primary)',
                         }}
                       >
                         ⚡ Kia Tacho ({Math.round(stats.latestSnapshot.odometer_km).toLocaleString('de-AT')} km)
@@ -1549,7 +1547,7 @@ export function App() {
                           display: 'flex',
                           alignItems: 'center',
                           gap: '4px',
-                          color: 'var(--primary-color)',
+                          color: 'var(--primary)',
                         }}
                       >
                         ⚡ Kia Tacho ({Math.round(stats.latestSnapshot.odometer_km).toLocaleString('de-AT')} km)
