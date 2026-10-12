@@ -5,7 +5,6 @@ import {
   Gauge,
   History,
   Settings,
-  PlusCircle,
   TrendingDown,
   RefreshCw,
   Trash2,
@@ -33,7 +32,6 @@ import {
   fetchTariffs,
   createChargingSession,
   createFuelSession,
-  createSnapshot,
   deleteChargingSession,
   deleteFuelSession,
   deleteSnapshot,
@@ -64,7 +62,7 @@ import {
 import type { PendingAction } from './offlineStore';
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'charge' | 'fuel' | 'snapshot' | 'history' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'charge' | 'fuel' | 'history' | 'settings'>('dashboard');
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -401,37 +399,6 @@ export function App() {
     }
   };
 
-  const handleSaveSnapshot = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const formData = new FormData(form);
-
-    const payload = {
-      vehicle_id: 1,
-      zeitpunkt: formData.get('zeitpunkt') || new Date().toISOString(),
-      odometer_km: formData.get('odometer_km'),
-      ev_range_km: formData.get('ev_range_km') || undefined,
-      fuel_range_km: formData.get('fuel_range_km') || undefined,
-      soc_percent: formData.get('soc_percent') || undefined,
-      quelle: 'manuell',
-    };
-
-    try {
-      const res = await createSnapshot(payload);
-      if (res.offline) {
-        showToast('Snapshot offline gespeichert!', 'warn');
-      } else {
-        showToast('Snapshot erfolgreich erfasst!');
-      }
-      form.reset();
-      await checkPendingActions();
-      await loadDashboard();
-      setActiveTab('dashboard');
-    } catch (err: any) {
-      alert(err.message);
-    }
-  };
-
   const handleAddTariff = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
@@ -563,9 +530,6 @@ export function App() {
             </button>
             <button className={`nav-btn ${activeTab === 'fuel' ? 'active' : ''}`} onClick={() => setActiveTab('fuel')}>
               <Fuel size={18} /> + Tanken
-            </button>
-            <button className={`nav-btn ${activeTab === 'snapshot' ? 'active' : ''}`} onClick={() => setActiveTab('snapshot')}>
-              <PlusCircle size={18} /> + Snapshot
             </button>
             <button className={`nav-btn ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>
               <History size={18} /> Verlauf
@@ -1448,184 +1412,118 @@ export function App() {
         {/* TAB: FUEL FORM */}
         {/* ========================================================================= */}
         {activeTab === 'fuel' && (
-          <div className="card" style={{ maxWidth: '600px', margin: '0 auto' }}>
-            <div className="card-title" style={{ color: 'var(--fuel-color)' }}>
-              <Fuel size={20} /> Tankvorgang erfassen
+          <div className="card form-card">
+            <div className="card-title card-title-fuel">
+              <Fuel size={18} /> Tankvorgang erfassen
             </div>
 
             <form onSubmit={handleSaveFuel}>
-              <div className="form-group">
-                <label>Getankte Liter *</label>
-                <input
-                  type="text"
-                  name="liter"
-                  required
-                  placeholder="z.B. 32,5"
-                  autoFocus
-                  inputMode="decimal"
-                />
-              </div>
+              <section className="form-section">
+                <h3 className="form-section-title">Tankdaten</h3>
 
-              <div className="grid-2">
                 <div className="form-group">
-                  <label>Preis pro Liter (€/L)</label>
+                  <label>Getankte Liter *</label>
                   <input
                     type="text"
-                    name="preis_pro_liter"
-                    placeholder="z.B. 1,629"
+                    name="liter"
+                    required
+                    placeholder="z.B. 32,5"
+                    autoFocus
                     inputMode="decimal"
                   />
                 </div>
 
-                <div className="form-group">
-                  <label>Gesamtkosten (€)</label>
-                  <input
-                    type="text"
-                    name="gesamtkosten"
-                    placeholder="z.B. 52,94"
-                    inputMode="decimal"
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>Tankstelle / Ort</label>
-                <input type="text" name="tankstelle" placeholder="z.B. OMV Dornbirn, BP Lustenau" />
-              </div>
-
-              <div className="grid-2">
-                <div className="form-group">
-                  <label>Gefahrene Benzin-Kilometer</label>
-                  <input
-                    type="text"
-                    name="fuel_km"
-                    placeholder="z.B. 550"
-                    inputMode="decimal"
-                    value={fuelKm}
-                    onChange={(e) => setFuelKm(e.target.value)}
-                  />
-                  <div className="input-helper">Mit Verbrenner gefahren seit letztem Tanken</div>
-                </div>
-
-                <div className="form-group">
-                  <div className="field-head">
-                    <label>Gesamtkilometerstand (Tacho)</label>
-                    {stats?.latestSnapshot?.odometer_km && (
-                      <button
-                        type="button"
-                        onClick={() => setFuelOdo(Math.round(stats.latestSnapshot!.odometer_km).toString())}
-                        className="chip-source"
-                      >
-                        <Gauge size={12} /> Kia Tacho ({Math.round(stats.latestSnapshot.odometer_km).toLocaleString('de-AT')} km)
-                      </button>
-                    )}
+                <div className="grid-2">
+                  <div className="form-group">
+                    <label>Preis pro Liter (€/L)</label>
+                    <input
+                      type="text"
+                      name="preis_pro_liter"
+                      placeholder="z.B. 1,629"
+                      inputMode="decimal"
+                    />
                   </div>
+
+                  <div className="form-group">
+                    <label>Gesamtkosten (€)</label>
+                    <input
+                      type="text"
+                      name="gesamtkosten"
+                      placeholder="z.B. 52,94"
+                      inputMode="decimal"
+                    />
+                  </div>
+                </div>
+
+                <div className="checkbox-row">
+                  <input type="checkbox" name="vollgetankt" id="vollgetankt" defaultChecked />
+                  <label htmlFor="vollgetankt">Vollgetankt (für präzise Verbrauchsrechnung)</label>
+                </div>
+              </section>
+
+              <section className="form-section">
+                <h3 className="form-section-title">Fahrzeugdaten</h3>
+
+                <div className="grid-2">
+                  <div className="form-group">
+                    <label>Gefahrene Benzin-Kilometer</label>
+                    <input
+                      type="text"
+                      name="fuel_km"
+                      placeholder="z.B. 550"
+                      inputMode="decimal"
+                      value={fuelKm}
+                      onChange={(e) => setFuelKm(e.target.value)}
+                    />
+                    <div className="input-helper">Mit Verbrenner gefahren seit letztem Tanken</div>
+                  </div>
+
+                  <div className="form-group">
+                    <div className="field-head">
+                      <label>Gesamtkilometerstand (Tacho)</label>
+                      {stats?.latestSnapshot?.odometer_km && (
+                        <button
+                          type="button"
+                          onClick={() => setFuelOdo(Math.round(stats.latestSnapshot!.odometer_km).toString())}
+                          className="chip-source"
+                        >
+                          <Gauge size={12} /> Kia Tacho ({Math.round(stats.latestSnapshot.odometer_km).toLocaleString('de-AT')} km)
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      name="odometer_km"
+                      placeholder="z.B. 45800"
+                      inputMode="numeric"
+                      value={fuelOdo}
+                      onChange={(e) => setFuelOdo(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Datum & Uhrzeit</label>
                   <input
-                    type="text"
-                    name="odometer_km"
-                    placeholder="z.B. 45800"
-                    inputMode="numeric"
-                    value={fuelOdo}
-                    onChange={(e) => setFuelOdo(e.target.value)}
+                    type="datetime-local"
+                    name="zeitpunkt"
+                    defaultValue={new Date().toISOString().slice(0, 16)}
                   />
                 </div>
-              </div>
+              </section>
 
-              <div className="checkbox-row">
-                <input type="checkbox" name="vollgetankt" id="vollgetankt" defaultChecked />
-                <label htmlFor="vollgetankt">Vollgetankt (für präzise Verbrauchsrechnung)</label>
-              </div>
+              <details className="form-optional">
+                <summary>Weitere Angaben <span className="badge-optional">Optional</span></summary>
 
-              <div className="form-group">
-                <label>Datum & Uhrzeit</label>
-                <input
-                  type="datetime-local"
-                  name="zeitpunkt"
-                  defaultValue={new Date().toISOString().slice(0, 16)}
-                />
-              </div>
+                <div className="form-group">
+                  <label>Tankstelle / Ort</label>
+                  <input type="text" name="tankstelle" placeholder="z.B. OMV Dornbirn, BP Lustenau" />
+                </div>
+              </details>
 
               <div className="form-actions">
                 <button type="submit" className="btn btn-save-fuel">
                   <CheckCircle2 size={18} /> Tankvorgang speichern
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={() => setActiveTab('dashboard')}>
-                  Abbrechen
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB: SNAPSHOT FORM */}
-        {/* ========================================================================= */}
-        {activeTab === 'snapshot' && (
-          <div className="card" style={{ maxWidth: '600px', margin: '0 auto' }}>
-            <div className="card-title">
-              <Gauge size={20} /> Tacho & Fahrzeug-Snapshot erfassen
-            </div>
-
-            <form onSubmit={handleSaveSnapshot}>
-              <div className="form-group">
-                <label>Gesamtkilometerstand (km) *</label>
-                <input
-                  type="text"
-                  name="odometer_km"
-                  required
-                  placeholder="z.B. 46000"
-                  defaultValue={stats?.latestSnapshot?.odometer_km ? Math.round(stats.latestSnapshot.odometer_km).toString() : ''}
-                  autoFocus
-                  inputMode="numeric"
-                />
-              </div>
-
-              <div className="grid-2">
-                <div className="form-group">
-                  <label>Restreichweite EV (km)</label>
-                  <input
-                    type="text"
-                    name="ev_range_km"
-                    placeholder="z.B. 42"
-                    defaultValue={stats?.latestSnapshot?.ev_range_km != null ? Math.round(stats.latestSnapshot.ev_range_km).toString() : ''}
-                    inputMode="numeric"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Restreichweite Benzin (km)</label>
-                  <input
-                    type="text"
-                    name="fuel_range_km"
-                    placeholder="z.B. 520"
-                    defaultValue={stats?.latestSnapshot?.fuel_range_km != null ? Math.round(stats.latestSnapshot.fuel_range_km).toString() : ''}
-                    inputMode="numeric"
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>Batteriestand SoC (%)</label>
-                <input
-                  type="text"
-                  name="soc_percent"
-                  placeholder="z.B. 85"
-                  defaultValue={stats?.latestSnapshot?.soc_percent != null ? Math.round(stats.latestSnapshot.soc_percent).toString() : ''}
-                  inputMode="numeric"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Datum & Uhrzeit</label>
-                <input
-                  type="datetime-local"
-                  name="zeitpunkt"
-                  defaultValue={new Date().toISOString().slice(0, 16)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
-                <button type="submit" className="btn btn-primary">
-                  <CheckCircle2 size={18} /> Snapshot speichern
                 </button>
                 <button type="button" className="btn btn-secondary" onClick={() => setActiveTab('dashboard')}>
                   Abbrechen

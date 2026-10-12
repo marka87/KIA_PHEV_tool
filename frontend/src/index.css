@@ -1632,3 +1632,7 @@ input:focus, select:focus, textarea:focus {
   padding: 1px 8px;
   margin-left: var(--space-2);
 }
+
+.card-title-fuel {
+  color: var(--fuel-color);
+}
