@@ -23,6 +23,7 @@ import {
   Radio,
   Battery,
   BatteryCharging,
+  Plus,
 } from 'lucide-react';
 import {
   fetchDashboardStats,
@@ -44,6 +45,9 @@ import {
   sendKiaRemoteControl,
   fetchBreakEvenSettings,
   saveBreakEvenSettings,
+  fetchPendingChargeSuggestions,
+  confirmChargeSuggestion,
+  dismissChargeSuggestion,
 } from './api';
 import type {
   DashboardStats,
@@ -52,6 +56,7 @@ import type {
   VehicleSnapshot,
   Tariff,
   KiaStatus,
+  ChargeSuggestion,
 } from './api';
 import {
   getPendingActions,
@@ -76,6 +81,9 @@ export function App() {
   const [snapshotList, setSnapshotList] = useState<VehicleSnapshot[]>([]);
   const [historyFilter, setHistoryFilter] = useState<'all' | 'charge' | 'fuel' | 'snapshot'>('all');
   const [historySortOrder, setHistorySortOrder] = useState<'desc' | 'asc'>('desc');
+  const [swipedItemId, setSwipedItemId] = useState<string | null>(null);
+  const [fullSwipedItemId, setFullSwipedItemId] = useState<string | null>(null);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
 
   // Form helper & prefill states
   const [chargeKwh, setChargeKwh] = useState('');
@@ -89,9 +97,22 @@ export function App() {
 
   const [fuelOdo, setFuelOdo] = useState('');
   const [fuelKm, setFuelKm] = useState('');
+  const [fuelLiter, setFuelLiter] = useState('');
+  const [fuelPricePerLiter, setFuelPricePerLiter] = useState('');
+  const [fuelTotalCost, setFuelTotalCost] = useState('');
 
-  // Tariffs
-  const [tariffs, setTariffs] = useState<Tariff[]>([]);
+  // Smart charge suggestions detected from SoC increase
+  const [chargeSuggestions, setChargeSuggestions] = useState<ChargeSuggestion[]>([]);
+
+  // Tariffs (cached locally for instant availability)
+  const [tariffs, setTariffs] = useState<Tariff[]>(() => {
+    try {
+      const cached = localStorage.getItem('phev-cached-tariffs');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Unique active tariffs for selection (newest validity per quelle)
   const activeTariffs = useMemo(() => {
@@ -122,6 +143,15 @@ export function App() {
     return null;
   }, [chargeKwh, chargePrice, activeTariffForQuelle]);
 
+  const calculatedFuelCost = useMemo(() => {
+    const literVal = Number(fuelLiter.replace(',', '.'));
+    const priceVal = Number(fuelPricePerLiter.replace(',', '.'));
+    if (Number.isFinite(literVal) && literVal > 0 && Number.isFinite(priceVal) && priceVal > 0) {
+      return literVal * priceVal;
+    }
+    return null;
+  }, [fuelLiter, fuelPricePerLiter]);
+
   // Simulator state in Dashboard
   const [simEvPrice, setSimEvPrice] = useState<number>(0.28);
   const [simFuelPrice, setSimFuelPrice] = useState<number>(1.65);
@@ -140,6 +170,12 @@ export function App() {
   const [dashboardTheme, setDashboardTheme] = useState<'oled' | 'blue'>(
     () => (localStorage.getItem('dashboard-theme') as 'oled' | 'blue' | null) || 'oled',
   );
+
+  // Tariff management states
+  const [isAddTariffOpen, setIsAddTariffOpen] = useState(false);
+  const [swipedTariffId, setSwipedTariffId] = useState<number | null>(null);
+  const [fullSwipedTariffId, setFullSwipedTariffId] = useState<number | null>(null);
+  const [deletingTariffId, setDeletingTariffId] = useState<number | null>(null);
 
   // Kia Remote Controls state
   const [isRemoteLoading, setIsRemoteLoading] = useState(false);
@@ -201,6 +237,7 @@ export function App() {
   };
 
   const loadDashboard = async () => {
+    loadChargeSuggestions();
     try {
       const data = await fetchDashboardStats(1);
       setStats(data);
@@ -259,9 +296,48 @@ export function App() {
   const loadTariffs = async () => {
     try {
       const list = await fetchTariffs();
-      setTariffs(list);
+      if (Array.isArray(list) && list.length > 0) {
+        setTariffs(list);
+        try {
+          localStorage.setItem('phev-cached-tariffs', JSON.stringify(list));
+        } catch {}
+      }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const loadChargeSuggestions = async () => {
+    try {
+      const list = await fetchPendingChargeSuggestions(1);
+      setChargeSuggestions(list);
+    } catch {
+      // offline or backend unreachable
+    }
+  };
+
+  const handleConfirmSuggestion = async (s: ChargeSuggestion) => {
+    try {
+      const defaultTariff = activeTariffForQuelle || activeTariffs[0];
+      await confirmChargeSuggestion(s.id, {
+        quelle: defaultTariff ? defaultTariff.quelle : 'zuhause',
+        preis_pro_kwh: defaultTariff ? defaultTariff.preis_pro_kwh : undefined,
+      });
+      showToast(`Ladevorgang (+${formatNum(s.estimated_kwh, 2)} kWh) gespeichert!`);
+      await loadChargeSuggestions();
+      await loadDashboard();
+    } catch (err: any) {
+      showToast(err.message || 'Fehler beim Bestätigen', 'warn');
+    }
+  };
+
+  const handleDismissSuggestion = async (s: ChargeSuggestion) => {
+    try {
+      await dismissChargeSuggestion(s.id);
+      showToast('Ladevorschlag verworfen');
+      await loadChargeSuggestions();
+    } catch (err: any) {
+      showToast(err.message || 'Fehler beim Verwerfen', 'warn');
     }
   };
 
@@ -287,13 +363,16 @@ export function App() {
       if (!chargeOdo && stats?.latestSnapshot?.odometer_km) {
         setChargeOdo(Math.round(stats.latestSnapshot.odometer_km).toString());
       }
+      if (!chargePrice && activeTariffForQuelle) {
+        setChargePrice(String(activeTariffForQuelle.preis_pro_kwh).replace('.', ','));
+      }
     }
     if (activeTab === 'fuel') {
       if (!fuelOdo && stats?.latestSnapshot?.odometer_km) {
         setFuelOdo(Math.round(stats.latestSnapshot.odometer_km).toString());
       }
     }
-  }, [activeTab, stats]);
+  }, [activeTab, stats, activeTariffForQuelle]);
 
   useEffect(() => {
     if (tariffs.length > 0) {
@@ -305,9 +384,7 @@ export function App() {
       } else if (chargeQuelle !== 'sonstige') {
         const first = tariffs[0];
         setChargeQuelle(first.quelle);
-        if (!chargePrice) {
-          setChargePrice(String(first.preis_pro_kwh).replace('.', ','));
-        }
+        setChargePrice(String(first.preis_pro_kwh).replace('.', ','));
       }
     }
   }, [tariffs]);
@@ -323,6 +400,101 @@ export function App() {
     } catch {
       return iso;
     }
+  };
+
+  // Swipe gesture & animated deletion helpers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    const el = e.currentTarget as HTMLElement;
+    el.dataset.startX = String(touch.clientX);
+    el.dataset.startY = String(touch.clientY);
+    el.dataset.swiping = 'false';
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const el = e.currentTarget as HTMLElement;
+    const startX = Number(el.dataset.startX);
+    const startY = Number(el.dataset.startY);
+    if (!startX) return;
+
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const deltaX = startX - currentX;
+    const deltaY = Math.abs(startY - currentY);
+
+    if (deltaY > Math.abs(deltaX) && el.dataset.swiping !== 'true') {
+      return;
+    }
+
+    if (deltaX > 10) {
+      el.dataset.swiping = 'true';
+    }
+  };
+
+  const handleTouchEnd = (
+    e: React.TouchEvent,
+    onSnapOpen: () => void,
+    onSnapClose: () => void,
+    onFullSwipe: () => void,
+  ) => {
+    const el = e.currentTarget as HTMLElement;
+    const startX = Number(el.dataset.startX);
+    if (!startX) return;
+
+    const currentX = e.changedTouches[0].clientX;
+    const deltaX = startX - currentX;
+    const rowWidth = el.offsetWidth || 300;
+
+    delete el.dataset.startX;
+    delete el.dataset.startY;
+    delete el.dataset.swiping;
+
+    if (deltaX > rowWidth * 0.45) {
+      onFullSwipe();
+    } else if (deltaX > 55) {
+      onSnapOpen();
+    } else if (deltaX < -30) {
+      onSnapClose();
+    }
+  };
+
+  const handleDeleteHistoryItem = (type: 'charge' | 'fuel' | 'snapshot', id: number, idKey: string) => {
+    if (deletingItemId === idKey) return;
+    setDeletingItemId(idKey);
+    setTimeout(async () => {
+      try {
+        if (type === 'charge') await deleteChargingSession(id);
+        else if (type === 'fuel') await deleteFuelSession(id);
+        else if (type === 'snapshot') await deleteSnapshot(id);
+        await loadHistory();
+        await loadDashboard();
+        showToast('Eintrag gelöscht');
+      } catch (err: any) {
+        alert(err.message || 'Löschen fehlgeschlagen');
+      } finally {
+        setDeletingItemId(null);
+        setSwipedItemId(null);
+        setFullSwipedItemId(null);
+      }
+    }, 280);
+  };
+
+  const handleDeleteTariffItem = (id: number, bezeichnung: string) => {
+    if (deletingTariffId === id) return;
+    setDeletingTariffId(id);
+    setTimeout(async () => {
+      try {
+        await deleteTariff(id);
+        await loadTariffs();
+        showToast(`Tarif "${bezeichnung}" gelöscht`);
+      } catch (err: any) {
+        alert(err.message || 'Löschen fehlgeschlagen');
+      } finally {
+        setDeletingTariffId(null);
+        setSwipedTariffId(null);
+        setFullSwipedTariffId(null);
+      }
+    }, 280);
   };
 
   // Forms submit handlers
@@ -391,6 +563,9 @@ export function App() {
       form.reset();
       setFuelOdo('');
       setFuelKm('');
+      setFuelLiter('');
+      setFuelPricePerLiter('');
+      setFuelTotalCost('');
       await checkPendingActions();
       await loadDashboard();
       setActiveTab('dashboard');
@@ -414,6 +589,7 @@ export function App() {
       showToast('Tarif angelegt!');
       form.reset();
       loadTariffs();
+      setIsAddTariffOpen(false);
     } catch (err: any) {
       alert(err.message);
     }
@@ -509,44 +685,67 @@ export function App() {
   const isSimEvCheaper = simEvPrice <= simulatedBreakEven;
 
   return (
-    <div>
-      {/* Header */}
-      <header className="app-header">
-        <div className="header-content">
-          <div className="brand">
-            <div className="brand-icon-box">
-              <Car size={18} />
-            </div>
-            <span>PHEV Tracker</span>
+    <div className="app-shell">
+      {/* macOS Desktop Sidebar (>= 900px) */}
+      <aside className="macos-sidebar">
+        <div className="macos-sidebar-brand">
+          <div className="brand-icon-box">
+            <Car size={18} />
           </div>
+          <span className="macos-sidebar-brand-title">PHEV Tracker</span>
+        </div>
 
-          {/* Desktop Nav */}
-          <nav className="nav-desktop">
-            <button className={`nav-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
-              <Gauge size={18} /> Dashboard
-            </button>
-            <button className={`nav-btn ${activeTab === 'charge' ? 'active' : ''}`} onClick={() => setActiveTab('charge')}>
-              <Zap size={18} /> + Ladung
-            </button>
-            <button className={`nav-btn ${activeTab === 'fuel' ? 'active' : ''}`} onClick={() => setActiveTab('fuel')}>
-              <Fuel size={18} /> + Tanken
-            </button>
-            <button className={`nav-btn ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>
-              <History size={18} /> Verlauf
-            </button>
-            <button className={`nav-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
-              <Settings size={18} /> Setup
-            </button>
-          </nav>
+        <nav className="macos-sidebar-nav">
+          <button
+            type="button"
+            className={`macos-sidebar-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setActiveTab('dashboard')}
+          >
+            <Gauge size={18} />
+            <span>Dashboard</span>
+          </button>
+          <button
+            type="button"
+            className={`macos-sidebar-btn ${activeTab === 'charge' ? 'active' : ''}`}
+            onClick={() => setActiveTab('charge')}
+          >
+            <Zap size={18} />
+            <span>Laden</span>
+          </button>
+          <button
+            type="button"
+            className={`macos-sidebar-btn ${activeTab === 'fuel' ? 'active' : ''}`}
+            onClick={() => setActiveTab('fuel')}
+          >
+            <Fuel size={18} />
+            <span>Tanken</span>
+          </button>
+          <button
+            type="button"
+            className={`macos-sidebar-btn ${activeTab === 'history' ? 'active' : ''}`}
+            onClick={() => setActiveTab('history')}
+          >
+            <History size={18} />
+            <span>Verlauf</span>
+          </button>
+          <button
+            type="button"
+            className={`macos-sidebar-btn ${activeTab === 'settings' ? 'active' : ''}`}
+            onClick={() => setActiveTab('settings')}
+          >
+            <Settings size={18} />
+            <span>Setup</span>
+          </button>
+        </nav>
 
-          {/* Connection / Sync indicator */}
+        <div className="macos-sidebar-footer">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {isOnline ? (
               <span className="badge-online-pill" title="Verbunden mit Server">
                 <span className="dot" /> Online
               </span>
             ) : (
-              <span className="badge-offline-pill" title="Offline-Modus: Daten werden lokal gespeichert">
+              <span className="badge-offline-pill" title="Offline-Modus">
                 <span className="dot" /> Offline
               </span>
             )}
@@ -556,23 +755,72 @@ export function App() {
                 style={{ backgroundColor: '#eab308', color: '#000', cursor: 'pointer', border: 'none' }}
                 onClick={handleSync}
                 disabled={syncing || !isOnline}
-                title="Klicken zum Synchronisieren"
+                title="Synchronisieren"
               >
-                <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
-                {pendingActions.length} offen
+                <RefreshCw size={11} className={syncing ? 'animate-spin' : ''} />
+                {pendingActions.length}
               </button>
             )}
           </div>
         </div>
-      </header>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="app-main-content">
+        {/* Mobile Header (< 900px) */}
+        <header className="app-header">
+          <div className="header-content">
+            <div className="brand">
+              <div className="brand-icon-box">
+                <Car size={18} />
+              </div>
+              <span>PHEV Tracker</span>
+            </div>
+
+            {/* Connection / Sync indicator */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {isOnline ? (
+                <span className="badge-online-pill" title="Verbunden mit Server">
+                  <span className="dot" /> Online
+                </span>
+              ) : (
+                <span className="badge-offline-pill" title="Offline-Modus: Daten werden lokal gespeichert">
+                  <span className="dot" /> Offline
+                </span>
+              )}
+              {pendingActions.length > 0 && (
+                <button
+                  className="badge"
+                  style={{ backgroundColor: '#eab308', color: '#000', cursor: 'pointer', border: 'none' }}
+                  onClick={handleSync}
+                  disabled={syncing || !isOnline}
+                  title="Klicken zum Synchronisieren"
+                >
+                  <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
+                  {pendingActions.length} offen
+                </button>
+              )}
+            </div>
+          </div>
+        </header>
 
         {/* Main Container */}
         <main className="container">
-          {/* Toast / Sync Banner */}
+          {/* Toast / Sync Banner (Apple Dynamic Island style) */}
           {toastMsg && (
-            <div className={`banner ${toastMsg.type === 'warn' ? 'banner-warning' : 'banner-success'}`}>
-              <span>{toastMsg.text}</span>
-              <button onClick={() => setToastMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>×</button>
+            <div className="toast-container">
+              <div className={`banner ${toastMsg.type === 'warn' ? 'banner-warning' : 'banner-success'}`}>
+                {toastMsg.type === 'warn' ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}
+                <span>{toastMsg.text}</span>
+                <button
+                  type="button"
+                  onClick={() => setToastMsg(null)}
+                  className="banner-close-btn"
+                  title="Schließen"
+                >
+                  ×
+                </button>
+              </div>
             </div>
           )}
 
@@ -621,7 +869,7 @@ export function App() {
 
             const renderControlCard = () => (
               <div className="control-card">
-                <div className="control-card-title">BEDIENUNG</div>
+                <div className="control-card-title">Schnellsteuerung</div>
                 <div className="control-btn-grid">
                   <button
                     type="button"
@@ -636,7 +884,7 @@ export function App() {
                     }}
                     title="Auto verriegeln"
                   >
-                    <Lock size={24} />
+                    <Lock size={20} />
                     <span>Verriegeln</span>
                   </button>
 
@@ -655,7 +903,7 @@ export function App() {
                     }}
                     title="Auto entriegeln"
                   >
-                    <Unlock size={24} />
+                    <Unlock size={20} />
                     <span>Entriegeln</span>
                   </button>
                 </div>
@@ -690,7 +938,7 @@ export function App() {
               <div className={`status-card ${isDesktop ? 'status-card-desktop' : ''}`}>
                 <div className="status-card-header">
                   <div>
-                    <div className="status-card-title">FAHRZEUGSTATUS</div>
+                    <div className="status-card-title">Fahrzeugstatus</div>
                     <div className="status-card-subtitle">
                       Stand: {formatDate(snap?.zeitpunkt || new Date().toISOString())}
                     </div>
@@ -710,8 +958,8 @@ export function App() {
                       className="status-sync-btn"
                       title="Schneller Cloud-Sync"
                     >
-                      <RefreshCw size={12} className={isKiaSyncing ? 'spin' : ''} />
-                      Schnell Sync
+                      <RefreshCw size={11} className={isKiaSyncing ? 'spin' : ''} />
+                      Schnell
                     </button>
                     <button
                       type="button"
@@ -726,65 +974,72 @@ export function App() {
                       className="status-sync-btn"
                       title="Live Aufweck-Sync per Mobilfunk"
                     >
-                      <Radio size={12} className={isKiaSyncing ? 'spin' : ''} />
-                      Live Sync
+                      <Radio size={11} className={isKiaSyncing ? 'spin' : ''} />
+                      Live
                     </button>
                   </div>
                 </div>
 
                 <div className={`status-grid status-grid-tiles ${isDesktop ? 'status-grid-desktop' : ''}`}>
-                  {/* Left Column: Tacho & HV-Akku */}
+                  {/* Tile 1: HV-Akku */}
                   <div className="status-tile">
-                    <Gauge size={22} className="tile-icon-neutral" />
-                    <div className="status-metric-label">TACHO</div>
-                    <div className="status-metric-val">
-                      {formatNum(snap?.odometer_km || 0, 0)} km
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="status-metric-label">Hochvolt-Akku</span>
+                      <BatteryCharging size={18} style={{ color: 'var(--ev-color)' }} />
                     </div>
-
-                  </div>
-
-                  <div className="status-tile">
-                    <Fuel size={22} className="tile-icon-fuel" />
-                    <div className="status-metric-label">REICHWEITE (BENZIN)</div>
-                    <div className="status-metric-val">
-                      {snap?.fuel_range_km ? `${formatNum(snap.fuel_range_km, 0)} km` : '- km'}
-                    </div>
-
-                  </div>
-
-                  <div className="status-tile">
-                    <BatteryCharging className="status-tile-icon tile-icon-ev" />
-                    <div className="status-battery-label"><span>HV-AKKU</span></div>
-                    <div className="status-battery-val tile-value-ev">
-                      {snap?.soc_percent !== null && snap?.soc_percent !== undefined ? `${formatNum(snap.soc_percent, 0)}%` : '-%'}
-                      {snap?.ev_range_km ? ` (${formatNum(snap.ev_range_km, 0)} km)` : ''}
+                    <div className="status-metric-val" style={{ color: 'var(--ev-color)' }}>
+                      {snap?.soc_percent !== null && snap?.soc_percent !== undefined ? `${formatNum(snap.soc_percent, 0)} %` : '– %'}
                     </div>
                     <div className="status-progress-track">
                       <div className="status-progress-fill tile-bar-ev" style={{ width: `${Math.min(100, Math.max(0, snap?.soc_percent || 0))}%` }} />
                     </div>
-                    <div className="status-subtext">{snap?.charge_remaining_min ? `ca. ${snap.charge_remaining_min} Min. bis voll` : 'Optimaler Zustand'}</div>
+                    <div className="status-subtext">
+                      {snap?.ev_range_km ? `${formatNum(snap.ev_range_km, 0)} km Rest` : ''}
+                      {snap?.charge_remaining_min ? ` • Noch ~${snap.charge_remaining_min} Min.` : ''}
+                    </div>
                   </div>
 
+                  {/* Tile 2: Tacho */}
                   <div className="status-tile">
-                    <Battery className="status-tile-icon tile-icon-violet" />
-                    <div className="status-battery-label"><span>12V-AKKU</span></div>
-                    <div
-                      className={`status-battery-val ${is12vLow ? 'tile-state-bad' : is12vMed ? 'tile-state-warn' : 'tile-state-ok'}`}
-                    >
-                      {snap?.car_12v_percent !== null && snap?.car_12v_percent !== undefined ? `${snap.car_12v_percent}%` : '-%'}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="status-metric-label">Tachostand</span>
+                      <Gauge size={18} style={{ color: 'var(--text-muted)' }} />
                     </div>
+                    <div className="status-metric-val">
+                      {snap?.odometer_km ? `${formatNum(snap.odometer_km, 0)} km` : '– km'}
+                    </div>
+                    <div className="status-subtext">Gesamtfahrstrecke</div>
+                  </div>
 
+                  {/* Tile 3: Benzin-Reichweite */}
+                  <div className="status-tile">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="status-metric-label">Benzin-Reichweite</span>
+                      <Fuel size={18} style={{ color: 'var(--fuel-color)' }} />
+                    </div>
+                    <div className="status-metric-val" style={{ color: 'var(--fuel-color)' }}>
+                      {snap?.fuel_range_km ? `${formatNum(snap.fuel_range_km, 0)} km` : '– km'}
+                    </div>
+                    <div className="status-subtext">Tankreserve aktiv</div>
+                  </div>
+
+                  {/* Tile 4: 12V-Batterie */}
+                  <div className="status-tile">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="status-metric-label">12V-Batterie</span>
+                      <Battery size={18} style={{ color: is12vLow ? 'var(--danger)' : is12vMed ? 'var(--fuel-color)' : 'var(--text-muted)' }} />
+                    </div>
+                    <div className={`status-metric-val ${is12vLow ? 'tile-state-bad' : is12vMed ? 'tile-state-warn' : ''}`}>
+                      {snap?.car_12v_percent !== null && snap?.car_12v_percent !== undefined ? `${snap.car_12v_percent} %` : '– %'}
+                    </div>
                     <div className="status-progress-track">
                       <div
                         className={`status-progress-fill ${is12vLow ? 'tile-bar-bad' : is12vMed ? 'tile-bar-warn' : 'tile-bar-ok'}`}
-                        style={{
-                          width: `${Math.min(100, Math.max(0, snap?.car_12v_percent || 0))}%`,
-                        }}
+                        style={{ width: `${Math.min(100, Math.max(0, snap?.car_12v_percent || 0))}%` }}
                       />
                     </div>
-
                     <div className="status-subtext">
-                      {is12vLow ? 'Bitte bald laden' : is12vMed ? 'Normale Entladung' : 'Optimaler Zustand'}
+                      {is12vLow ? '⚠️ Bitte bald laden' : is12vMed ? 'Ausreichend' : 'Geladen'}
                     </div>
                   </div>
                 </div>
@@ -792,15 +1047,13 @@ export function App() {
                 {/* Warnings or open items banner if any */}
                 {hasOpenItems && (
                   <div className="status-warning-banner">
-                    <AlertTriangle size={15} style={{ color: '#ff4658', flexShrink: 0 }} />
-                    <div>
-                      Geöffnet: {openDoorsList.concat(openWindowsList).join(', ')}
-                    </div>
+                    <AlertTriangle size={15} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+                    <div>Geöffnet: {openDoorsList.concat(openWindowsList).join(', ')}</div>
                   </div>
                 )}
                 {hasWarnings && (
                   <div className="status-warning-banner">
-                    <AlertTriangle size={15} style={{ color: '#ffb020', flexShrink: 0 }} />
+                    <AlertTriangle size={15} style={{ color: 'var(--fuel-color)', flexShrink: 0 }} />
                     <div>
                       Warnung:{' '}
                       {[
@@ -820,19 +1073,16 @@ export function App() {
               if (!stats) return null;
               return (
                 <div className="savings-banner-card">
-                  <div className="savings-banner-title">Spar-Status</div>
                   <div className={`savings-banner-box ${stats.breakEven.isEvCheaper ? '' : 'fuel-cheaper'}`}>
                     <div className="savings-icon-box">
-                      <Zap size={20} />
+                      <Zap size={18} />
                     </div>
-                    <div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="savings-title-text">
-                        {stats.breakEven.isEvCheaper ? 'AKTUELL SPAREND (Strom)' : 'AKTUELL SPAREND (Benzin)'}
+                        {stats.breakEven.isEvCheaper ? 'Elektroantrieb ist günstiger' : 'Benzinbetrieb ist günstiger'}
                       </div>
                       <div className="savings-sub-text">
-                        Schwelle: {formatNum(stats.breakEven.breakEvenElectricityPricePerKwh, 3)} €/kWh |{' '}
-                        {stats.breakEven.isEvCheaper ? '+' : ''}
-                        {formatCur(stats.breakEven.savingsPer100Km)} / 100 km
+                        Ersparnis: <strong style={{ color: stats.breakEven.isEvCheaper ? 'var(--ev-color)' : 'var(--fuel-color)' }}>+{formatCur(stats.breakEven.savingsPer100Km)} / 100 km</strong> • Schwelle: {formatNum(stats.breakEven.breakEvenElectricityPricePerKwh, 3)} €/kWh
                       </div>
                     </div>
                   </div>
@@ -844,31 +1094,31 @@ export function App() {
               if (!stats) return null;
               return (
                 <div className="cost-card">
-                  <div className="cost-card-title">KOSTEN-VERGLEICH</div>
+                  <div className="cost-card-title">Kostenvergleich</div>
                   <div className="cost-card-grid">
                     {/* EV Column */}
                     <div className="cost-col-ev">
-                      <div className="cost-col-header-ev">ELEKTROBETRIEB</div>
+                      <div className="cost-col-header-ev">Elektro</div>
                       <div className="cost-col-main-val-ev">{formatKmCur(stats.evMetrics.costPerKm)}</div>
                       <div className="cost-col-sub-val">
-                        {formatCur(stats.evMetrics.costPer100Km)} / {formatNum(stats.evMetrics.kwhPer100Km, 1)} kWh/100 km
+                        {formatCur(stats.evMetrics.costPer100Km)} / 100 km
                       </div>
 
                       <div className="cost-details-list">
                         <div className="cost-detail-row">
-                          <span>Realverbrauch</span>
+                          <span>Verbrauch</span>
                           <strong>{formatNum(stats.evMetrics.kwhPer100Km, 1)} kWh/100 km</strong>
                         </div>
                         <div className="cost-detail-row">
-                          <span>Erfasste EV Distanz</span>
+                          <span>Distanz</span>
                           <span>{formatNum(stats.evMetrics.totalEvKm, 0)} km</span>
                         </div>
                         <div className="cost-detail-row">
-                          <span>Geladene Energie</span>
+                          <span>Energie</span>
                           <span>{formatNum(stats.evMetrics.totalKwh, 1)} kWh</span>
                         </div>
                         <div className="cost-detail-row">
-                          <span>Ladekosten gesamt</span>
+                          <span>Kosten</span>
                           <span>{formatCur(stats.evMetrics.totalCost)}</span>
                         </div>
                       </div>
@@ -878,33 +1128,33 @@ export function App() {
                         className="cost-btn-details-ev"
                         onClick={() => setShowSimulator(!showSimulator)}
                       >
-                        DETAILS
+                        {showSimulator ? 'Rechner schließen' : 'Rechner & Details ▾'}
                       </button>
                     </div>
 
                     {/* Fuel Column */}
                     <div className="cost-col-fuel">
-                      <div className="cost-col-header-fuel">VERBRENNERBETRIEB</div>
+                      <div className="cost-col-header-fuel">Benzin</div>
                       <div className="cost-col-main-val-fuel">{formatKmCur(stats.fuelMetrics.costPerKm)}</div>
                       <div className="cost-col-sub-val">
-                        {formatCur(stats.fuelMetrics.costPer100Km)} / {formatNum(stats.fuelMetrics.literPer100Km, 1)} L/100 km
+                        {formatCur(stats.fuelMetrics.costPer100Km)} / 100 km
                       </div>
 
                       <div className="cost-details-list">
                         <div className="cost-detail-row">
-                          <span>Realverbrauch</span>
+                          <span>Verbrauch</span>
                           <strong>{formatNum(stats.fuelMetrics.literPer100Km, 1)} L/100 km</strong>
                         </div>
                         <div className="cost-detail-row">
-                          <span>Erfasste Benzin Distanz</span>
+                          <span>Distanz</span>
                           <span>{formatNum(stats.fuelMetrics.totalFuelKm, 0)} km</span>
                         </div>
                         <div className="cost-detail-row">
-                          <span>Erfasste Distanz</span>
-                          <span>{formatNum((stats.evMetrics.totalEvKm || 0) + (stats.fuelMetrics.totalFuelKm || 0), 0)} gesamt</span>
+                          <span>Gesamt</span>
+                          <span>{formatNum((stats.evMetrics.totalEvKm || 0) + (stats.fuelMetrics.totalFuelKm || 0), 0)} km</span>
                         </div>
                         <div className="cost-detail-row">
-                          <span>Getankt gesamt</span>
+                          <span>Kosten</span>
                           <span>{formatCur(stats.fuelMetrics.totalCost)}</span>
                         </div>
                       </div>
@@ -914,7 +1164,7 @@ export function App() {
                         className="cost-btn-details-fuel"
                         onClick={() => setShowSimulator(!showSimulator)}
                       >
-                        DETAILS
+                        {showSimulator ? 'Rechner schließen' : 'Rechner & Details ▾'}
                       </button>
                     </div>
                   </div>
@@ -1009,12 +1259,17 @@ export function App() {
                     onClick={() => setShowVehicleMap(!showVehicleMap)}
                   >
                     <div className="park-card-title">
-                      <MapPin size={16} style={{ color: '#94a3b8' }} />
-                      <span>
-                        GEPARKTE POS: {snap.location_lat.toFixed(5)}, {snap.location_lon.toFixed(5)}
-                      </span>
+                      <div className="park-icon-box">
+                        <MapPin size={17} />
+                      </div>
+                      <div>
+                        <div className="park-main-title">Parkposition</div>
+                        <div className="park-coords">
+                          {snap.location_lat.toFixed(5)}° N · {snap.location_lon.toFixed(5)}° E
+                        </div>
+                      </div>
                     </div>
-                    {showVehicleMap ? <ChevronUp size={16} color="#94a3b8" /> : <ChevronDown size={16} color="#94a3b8" />}
+                    {showVehicleMap ? <ChevronUp size={18} color="var(--text-muted)" /> : <ChevronDown size={18} color="var(--text-muted)" />}
                   </div>
 
                   <div className="park-actions">
@@ -1037,7 +1292,7 @@ export function App() {
                   </div>
 
                   {showVehicleMap && (
-                    <div style={{ marginTop: '12px', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                    <div className="park-map-frame">
                       <iframe
                         title="Fahrzeug Parkposition"
                         width="100%"
@@ -1051,12 +1306,57 @@ export function App() {
               );
             };
 
+            const renderChargeSuggestionsCard = () => {
+              if (chargeSuggestions.length === 0) return null;
+              return (
+                <div className="suggestion-container">
+                  {chargeSuggestions.map((s) => (
+                    <div key={s.id} className="suggestion-card">
+                      <div className="suggestion-header">
+                        <div className="suggestion-icon-badge">
+                          <Zap size={18} />
+                        </div>
+                        <div className="suggestion-content">
+                          <div className="suggestion-title">
+                            Ladevorgang erkannt
+                          </div>
+                          <div className="suggestion-detail">
+                            SoC: {s.from_soc_percent}% → {s.to_soc_percent}% (+{s.soc_diff_percent}%) · ca. {formatNum(s.estimated_kwh, 2)} kWh
+                          </div>
+                          <div className="suggestion-time">
+                            {formatDate(s.to_zeitpunkt)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="suggestion-actions">
+                        <button
+                          type="button"
+                          className="suggestion-btn-confirm"
+                          onClick={() => handleConfirmSuggestion(s)}
+                        >
+                          <CheckCircle2 size={15} /> Als Ladung speichern
+                        </button>
+                        <button
+                          type="button"
+                          className="suggestion-btn-dismiss"
+                          onClick={() => handleDismissSuggestion(s)}
+                        >
+                          Verwerfen
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            };
+
             return (
               <div className="dashboard-container">
                 {/* Mobile View (< 900px): Clean single-column mobile flow */}
                 <div className="dashboard-mobile">
-                  {renderControlCard()}
                   {renderStatusCard(false)}
+                  {renderChargeSuggestionsCard()}
+                  {renderControlCard()}
                   {renderSavingsCard()}
                   {renderCostCard()}
                   {renderParkCard()}
@@ -1066,6 +1366,7 @@ export function App() {
                 <div className="dashboard-desktop">
                   {/* Top full-width Vehicle Overview with 4 metric tiles across */}
                   {renderStatusCard(true)}
+                  {renderChargeSuggestionsCard()}
 
                   {/* 2-Column Desktop Cockpit: Controls & Map on Left, Savings & Costs on Right */}
                   <div className="dashboard-desktop-grid">
@@ -1086,503 +1387,600 @@ export function App() {
         {/* ========================================================================= */}
         {/* TAB: CHARGING FORM */}
         {/* ========================================================================= */}
+        {/* ========================================================================= */}
+        {/* TAB: CHARGING FORM (APPLE HIG GROUPED INSET LAYOUT) */}
+        {/* ========================================================================= */}
         {activeTab === 'charge' && (
-          <div className="card form-card">
-            <div className="card-title card-title-ev">
-              <Zap size={18} /> Ladevorgang erfassen
-            </div>
+          <div className="apple-form-container">
+            <form id="charge-form" onSubmit={handleSaveCharge}>
+              {/* Header: iOS Modal Bar mit Abbrechen (links), Titel (Mitte) und Sichern (rechts) */}
+              <div className="apple-modal-nav">
+                <button
+                  type="button"
+                  className="apple-nav-action-btn apple-nav-cancel"
+                  onClick={() => setActiveTab('dashboard')}
+                >
+                  Abbrechen
+                </button>
+                <span className="apple-nav-title">Ladevorgang erfassen</span>
+                <button
+                  type="submit"
+                  className="apple-nav-action-btn apple-nav-save"
+                >
+                  Sichern
+                </button>
+              </div>
 
-            <form onSubmit={handleSaveCharge}>
-              <section className="form-section">
-              <div className="form-group">
-                <div className="field-head">
-                  <label>Geladene Menge in kWh *</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!chargeCalcOpen && stats?.latestSnapshot?.soc_percent) {
-                        setCalcEndPct(Math.round(stats.latestSnapshot.soc_percent));
-                      }
-                      setChargeCalcOpen(!chargeCalcOpen);
-                    }}
-                    className="chip-source chip-source-ev"
-                  >
-                    <Calculator size={13} /> {chargeCalcOpen ? 'Rechner schließen' : 'Aus Akku-% berechnen'}
-                  </button>
-                </div>
-
-                {chargeCalcOpen && (
-                  <div
-                    style={{
-                      padding: '12px',
-                      background: 'var(--bg-input)',
-                      borderRadius: '8px',
-                      marginBottom: '10px',
-                      border: '1px solid rgba(16, 185, 129, 0.25)',
-                    }}
-                  >
-                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--ev-color)', marginBottom: '4px' }}>
-                      Lade-Rechner (inkl. ~14% Ladeverlust)
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                      Kia Ceed PHEV Akku: 8,9 kWh. Wegen Wandlungsverlusten (ACDC) zieht das Auto ab Steckdose ca. 8,3 kWh für 100%.
-                    </div>
-                    <div className="grid-2" style={{ gap: '10px', marginBottom: '8px' }}>
-                      <div>
-                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Start-Akkustand (%)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={calcStartPct}
-                          onChange={(e) => setCalcStartPct(Number(e.target.value))}
-                          style={{ padding: '6px 8px', fontSize: '0.85rem' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>End-Akkustand (%)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={calcEndPct}
-                          onChange={(e) => setCalcEndPct(Number(e.target.value))}
-                          style={{ padding: '6px 8px', fontSize: '0.85rem' }}
-                        />
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>
-                        Netto: +{Math.max(0, calcEndPct - calcStartPct)}% ab Steckdose: <strong style={{ color: 'var(--text-primary)' }}>{((Math.max(0, calcEndPct - calcStartPct) / 100) * 8.3).toFixed(2).replace('.', ',')} kWh</strong>
-                      </span>
+              {/* 2-Column Responsive Layout on Desktop */}
+              <div className="apple-form-desktop-grid">
+                <div className="apple-form-desktop-col">
+                  {/* 1. Hero Amount Box mit dezentem Rechner-Icon an der Seite */}
+                  <div className="apple-hero-box">
+                    <div className="apple-hero-header-row">
+                      <div className="apple-hero-header-spacer" />
+                      <div className="apple-hero-label">Geladene Energiemenge</div>
                       <button
                         type="button"
                         onClick={() => {
-                          const val = ((Math.max(0, calcEndPct - calcStartPct) / 100) * 8.3).toFixed(2).replace('.', ',');
-                          setChargeKwh(val);
-                          setChargeCalcOpen(false);
+                          if (!chargeCalcOpen && stats?.latestSnapshot?.soc_percent) {
+                            setCalcEndPct(Math.round(stats.latestSnapshot.soc_percent));
+                          }
+                          setChargeCalcOpen(!chargeCalcOpen);
                         }}
-                        style={{
-                          background: 'var(--ev-color)',
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: '6px',
-                          padding: '5px 12px',
-                          fontSize: '0.75rem',
-                          cursor: 'pointer',
-                          fontWeight: 600,
-                        }}
+                        className={`apple-calc-icon-btn ${chargeCalcOpen ? 'active' : ''}`}
+                        title="Akku-% Rechner öffnen"
                       >
-                        In Feld übernehmen
+                        <Calculator size={15} />
                       </button>
                     </div>
-                  </div>
-                )}
 
-                <input
-                  type="text"
-                  name="kwh"
-                  required
-                  placeholder="z.B. 7,5"
-                  autoFocus
-                  inputMode="decimal"
-                  value={chargeKwh}
-                  onChange={(e) => setChargeKwh(e.target.value)}
-                />
-                <div className="quick-row">
-                  {stats?.latestSnapshot?.soc_percent != null && stats.latestSnapshot.soc_percent < 100 && (() => {
-                    const soc = stats.latestSnapshot.soc_percent;
-                    const needed = ((100 - soc) / 100 * 8.3).toFixed(1).replace('.', ',');
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => setChargeKwh(needed)}
-                        className="quick-chip"
-                      >
-                        Auf 100 % · {needed}
-                      </button>
-                    );
-                  })()}
-                  <button
-                    type="button"
-                    onClick={() => setChargeKwh('8,3')}
-                    className="quick-chip"
-                  >
-                    Voll · 8,3
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setChargeKwh('5,0')}
-                    className="quick-chip"
-                  >
-                    5,0
-                  </button>
-                </div>
-              </div>
+                    <div className="apple-hero-amount">
+                      <input
+                        type="text"
+                        name="kwh"
+                        required
+                        placeholder="0,0"
+                        autoFocus
+                        inputMode="decimal"
+                        value={chargeKwh}
+                        onChange={(e) => setChargeKwh(e.target.value)}
+                        className="apple-hero-input"
+                      />
+                      <span className="apple-hero-unit">kWh</span>
+                    </div>
 
-              </section>
-
-              <section className="form-section">
-              <div className="grid-2">
-                <div className="form-group">
-                  <div className="field-head">
-                    <label>Ladequelle / Ort *</label>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('settings')}
-                      className="link-btn"
-                    >
-                      Tarife verwalten 
-                    </button>
-                  </div>
-                  <select
-                    name="quelle"
-                    value={chargeQuelle}
-                    onChange={(e) => {
-                      const newQuelle = e.target.value;
-                      setChargeQuelle(newQuelle);
-                      const matched = activeTariffs.find((t) => t.quelle.toLowerCase() === newQuelle.toLowerCase());
-                      if (matched) {
-                        setChargePrice(String(matched.preis_pro_kwh).replace('.', ','));
-                      } else if (newQuelle === 'sonstige') {
-                        setChargePrice('');
-                      }
-                    }}
-                  >
-                    {activeTariffs.length === 0 ? (
-                      <>
-                        <option value="zuhause">Zuhause (Haushaltsstrom)</option>
-                        <option value="vkw">VKW / vlotte Ladekarte</option>
-                        <option value="enbw">EnBW mobility+</option>
-                        <option value="sonstige">Sonstige Ladesäule (Manuell)</option>
-                      </>
-                    ) : (
-                      <>
-                        {activeTariffs.map((t) => (
-                          <option key={t.id} value={t.quelle}>
-                            {t.bezeichnung} ({formatNum(t.preis_pro_kwh, 3)} €/kWh)
-                          </option>
-                        ))}
-                        {!activeTariffs.some((t) => t.quelle.toLowerCase() === 'sonstige') && (
-                          <option value="sonstige">Sonstige Ladesäule (Manuell)</option>
-                        )}
-                      </>
-                    )}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <div className="field-head">
-                    <label>Preis pro kWh (€)</label>
-                    {activeTariffForQuelle && (
-                      <button
-                        type="button"
-                        onClick={() => setChargePrice(String(activeTariffForQuelle.preis_pro_kwh).replace('.', ','))}
-                        className="chip-standard"
-                        title="Hinterlegten Tarif-Preis wiederherstellen"
-                      >
-                        Standard ({formatNum(activeTariffForQuelle.preis_pro_kwh, 3)} €)
-                      </button>
+                    {/* Integrated % Calculator Drawer */}
+                    {chargeCalcOpen && (
+                      <div className="apple-calc-drawer">
+                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--ev-color)', marginBottom: '4px' }}>
+                          Akku-Rechner (inkl. ~14% Wandlungsverlust)
+                        </div>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                          Netto ab Steckdose berechnet auf Basis des 8,9 kWh Akkus.
+                        </div>
+                        <div className="grid-2" style={{ gap: '10px', marginBottom: '10px' }}>
+                          <div>
+                            <label style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Start-Akkustand (%)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={calcStartPct}
+                              onChange={(e) => setCalcStartPct(Number(e.target.value))}
+                              style={{ padding: '6px 10px', fontSize: '0.9rem', width: '100%' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>End-Akkustand (%)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={calcEndPct}
+                              onChange={(e) => setCalcEndPct(Number(e.target.value))}
+                              style={{ padding: '6px 10px', fontSize: '0.9rem', width: '100%' }}
+                            />
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            +{Math.max(0, calcEndPct - calcStartPct)}% SoC: <strong style={{ color: '#fff' }}>{((Math.max(0, calcEndPct - calcStartPct) / 100) * 8.3).toFixed(2).replace('.', ',')} kWh</strong>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const val = ((Math.max(0, calcEndPct - calcStartPct) / 100) * 8.3).toFixed(2).replace('.', ',');
+                              setChargeKwh(val);
+                              setChargeCalcOpen(false);
+                            }}
+                            className="apple-preset-pill active"
+                          >
+                            In Feld übernehmen
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
-                  <input
-                    type="text"
-                    name="preis_pro_kwh"
-                    placeholder={activeTariffForQuelle ? String(activeTariffForQuelle.preis_pro_kwh).replace('.', ',') : 'z.B. 0,35'}
-                    inputMode="decimal"
-                    value={chargePrice}
-                    onChange={(e) => setChargePrice(e.target.value)}
-                  />
-                  {!activeTariffForQuelle && (
-                    <div className="input-helper">Kein Tarif hinterlegt – bitte Preis manuell eintragen</div>
-                  )}
-                </div>
-              </div>
 
-              {calculatedCost != null && (
-                <div className="cost-summary">
-                  <span className="cost-summary-label">Gesamtkosten</span>
-                  <strong className="cost-summary-value">{formatCur(calculatedCost)}</strong>
-                  <span className="cost-summary-sub">{chargeKwh} kWh × {chargePrice || (activeTariffForQuelle ? formatNum(activeTariffForQuelle.preis_pro_kwh, 3) : '0')} €/kWh</span>
-                </div>
-              )}
-              </section>
-
-              <section className="form-section">
-              <div className="grid-2">
-                <div className="form-group">
-                  <div className="field-head">
-                    <label>Gesamtkilometerstand (Tacho)</label>
-                    {stats?.latestSnapshot?.odometer_km && (
-                      <button
-                        type="button"
-                        onClick={() => setChargeOdo(Math.round(stats.latestSnapshot!.odometer_km).toString())}
-                        className="chip-source"
-                      >
-                        <Gauge size={12} /> Kia Tacho ({Math.round(stats.latestSnapshot.odometer_km).toLocaleString('de-AT')} km)
-                      </button>
-                    )}
-                  </div>
-                  <input
-                    type="text"
-                    name="odometer_km"
-                    placeholder="z.B. 45200"
-                    inputMode="numeric"
-                    value={chargeOdo}
-                    onChange={(e) => setChargeOdo(e.target.value)}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Datum & Uhrzeit</label>
-                  <input
-                    type="datetime-local"
-                    name="zeitpunkt"
-                    defaultValue={new Date().toISOString().slice(0, 16)}
-                  />
-                </div>
-              </div>
-
-              </section>
-
-              <details className="form-optional">
-                <summary>Weitere Angaben <span className="badge-optional">Optional</span></summary>
-
-                <div className="form-group">
-                  <label>Gesamtkosten (€)</label>
-                  <input
-                    type="text"
-                    name="gesamtkosten"
-                    placeholder={
-                      calculatedCost != null
-                        ? `~ ${formatNum(calculatedCost, 2)} € (auto-berechnet)`
-                        : 'z.B. 2,10 (wird sonst auto-berechnet)'
-                    }
-                    inputMode="decimal"
-                  />
-                  <div className="input-helper">Leer lassen für die automatische Berechnung</div>
-                </div>
-
-                <div className="form-group">
-                  <label>Elektrisch gefahrene km (EV-Trip)</label>
-                  <input
-                    type="text"
-                    name="ev_km"
-                    placeholder="z.B. 48,0"
-                    inputMode="decimal"
-                    value={chargeEvKm}
-                    onChange={(e) => setChargeEvKm(e.target.value)}
-                  />
-                  <div className="input-helper">Aus Bordcomputer / Trip-Zähler für genaue Kosten/km</div>
-                </div>
-
-                <div className="form-group">
-                  <label>Bemerkung / Standort</label>
-                  <input type="text" name="standort" placeholder="z.B. Wallbox Garage oder Filiale Dornbirn" />
-                </div>
-              </details>
-
-              <div className="form-actions">
-                <button type="submit" className="btn btn-primary btn-save-ev">
-                  <CheckCircle2 size={18} /> Speichern
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={() => setActiveTab('dashboard')}>
-                  Abbrechen
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB: FUEL FORM */}
-        {/* ========================================================================= */}
-        {activeTab === 'fuel' && (
-          <div className="card form-card">
-            <div className="card-title card-title-fuel">
-              <Fuel size={18} /> Tankvorgang erfassen
-            </div>
-
-            <form onSubmit={handleSaveFuel}>
-              <section className="form-section">
-                <h3 className="form-section-title">Tankdaten</h3>
-
-                <div className="form-group">
-                  <label>Getankte Liter *</label>
-                  <input
-                    type="text"
-                    name="liter"
-                    required
-                    placeholder="z.B. 32,5"
-                    autoFocus
-                    inputMode="decimal"
-                  />
-                </div>
-
-                <div className="grid-2">
-                  <div className="form-group">
-                    <label>Preis pro Liter (€/L)</label>
-                    <input
-                      type="text"
-                      name="preis_pro_liter"
-                      placeholder="z.B. 1,629"
-                      inputMode="decimal"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Gesamtkosten (€)</label>
-                    <input
-                      type="text"
-                      name="gesamtkosten"
-                      placeholder="z.B. 52,94"
-                      inputMode="decimal"
-                    />
-                  </div>
-                </div>
-
-                <div className="checkbox-row">
-                  <input type="checkbox" name="vollgetankt" id="vollgetankt" defaultChecked />
-                  <label htmlFor="vollgetankt">Vollgetankt (für präzise Verbrauchsrechnung)</label>
-                </div>
-              </section>
-
-              <section className="form-section">
-                <h3 className="form-section-title">Fahrzeugdaten</h3>
-
-                <div className="grid-2">
-                  <div className="form-group">
-                    <label>Gefahrene Benzin-Kilometer</label>
-                    <input
-                      type="text"
-                      name="fuel_km"
-                      placeholder="z.B. 550"
-                      inputMode="decimal"
-                      value={fuelKm}
-                      onChange={(e) => setFuelKm(e.target.value)}
-                    />
-                    <div className="input-helper">Mit Verbrenner gefahren seit letztem Tanken</div>
-                  </div>
-
-                  <div className="form-group">
-                    <div className="field-head">
-                      <label>Gesamtkilometerstand (Tacho)</label>
-                      {stats?.latestSnapshot?.odometer_km && (
+                  {/* 2. Grouped Inset Card: Ladung & Kosten */}
+                  <div className="settings-section-header">Ladung & Tarif</div>
+                  <div className="apple-grouped-card">
+                    <div className="apple-row">
+                      <label className="apple-row-label">Ladequelle</label>
+                      <div className="apple-row-content">
+                        <select
+                          name="quelle"
+                          value={chargeQuelle}
+                          onChange={(e) => {
+                            const newQuelle = e.target.value;
+                            setChargeQuelle(newQuelle);
+                            const matched = activeTariffs.find((t) => t.quelle.toLowerCase() === newQuelle.toLowerCase());
+                            if (matched) {
+                              setChargePrice(String(matched.preis_pro_kwh).replace('.', ','));
+                            } else if (newQuelle === 'sonstige') {
+                              setChargePrice('');
+                            }
+                          }}
+                          className="apple-row-select"
+                        >
+                          {activeTariffs.length === 0 ? (
+                            <>
+                              <option value="zuhause">Zuhause (Haushaltsstrom)</option>
+                              <option value="vkw">VKW / vlotte Ladekarte</option>
+                              <option value="enbw">EnBW mobility+</option>
+                              <option value="sonstige">Sonstige Ladesäule</option>
+                            </>
+                          ) : (
+                            <>
+                              {activeTariffs.map((t) => (
+                                <option key={t.id} value={t.quelle}>
+                                  {t.bezeichnung} ({formatNum(t.preis_pro_kwh, 3)} €)
+                                </option>
+                              ))}
+                              {!activeTariffs.some((t) => t.quelle.toLowerCase() === 'sonstige') && (
+                                <option value="sonstige">Sonstige Ladesäule</option>
+                              )}
+                            </>
+                          )}
+                        </select>
                         <button
                           type="button"
-                          onClick={() => setFuelOdo(Math.round(stats.latestSnapshot!.odometer_km).toString())}
-                          className="chip-source"
+                          onClick={() => setActiveTab('settings')}
+                          className="apple-gear-btn"
+                          title="Tarife in Setup verwalten"
                         >
-                          <Gauge size={12} /> Kia Tacho ({Math.round(stats.latestSnapshot.odometer_km).toLocaleString('de-AT')} km)
+                          <Settings size={15} />
                         </button>
-                      )}
+                      </div>
                     </div>
-                    <input
-                      type="text"
-                      name="odometer_km"
-                      placeholder="z.B. 45800"
-                      inputMode="numeric"
-                      value={fuelOdo}
-                      onChange={(e) => setFuelOdo(e.target.value)}
-                    />
+
+                    <div className="apple-row">
+                      <label className="apple-row-label">Strompreis</label>
+                      <div className="apple-row-content">
+                        <input
+                          type="text"
+                          name="preis_pro_kwh"
+                          placeholder={activeTariffForQuelle ? String(activeTariffForQuelle.preis_pro_kwh).replace('.', ',') : '0,28'}
+                          inputMode="decimal"
+                          value={chargePrice}
+                          onChange={(e) => setChargePrice(e.target.value)}
+                          className="apple-row-input"
+                        />
+                        <span className="apple-row-suffix">€/kWh</span>
+                        {activeTariffForQuelle && (
+                          <button
+                            type="button"
+                            onClick={() => setChargePrice(String(activeTariffForQuelle.preis_pro_kwh).replace('.', ','))}
+                            className="apple-chip-restore"
+                            title="Hinterlegten Tarif-Preis wiederherstellen"
+                          >
+                            Standard
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {calculatedCost != null && (
+                      <div className="apple-row apple-row-summary">
+                        <span className="apple-row-label">Gesamtkosten</span>
+                        <div className="apple-row-content">
+                          <span className="apple-row-value-accent">{formatCur(calculatedCost)}</span>
+                          <span className="apple-row-suffix">({chargeKwh} kWh × {chargePrice || (activeTariffForQuelle ? formatNum(activeTariffForQuelle.preis_pro_kwh, 3) : '0')} €)</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label>Datum & Uhrzeit</label>
-                  <input
-                    type="datetime-local"
-                    name="zeitpunkt"
-                    defaultValue={new Date().toISOString().slice(0, 16)}
-                  />
+                <div className="apple-form-desktop-col">
+                  {/* 3. Grouped Inset Card: Fahrzeug & Zeitpunkt */}
+                  <div className="settings-section-header">Fahrzeug & Datum</div>
+                  <div className="apple-grouped-card">
+                    <div className="apple-row">
+                      <label className="apple-row-label">Tachostand</label>
+                      <div className="apple-row-content">
+                        <input
+                          type="text"
+                          name="odometer_km"
+                          placeholder="z.B. 45200"
+                          inputMode="numeric"
+                          value={chargeOdo}
+                          onChange={(e) => setChargeOdo(e.target.value)}
+                          className="apple-row-input"
+                        />
+                        <span className="apple-row-suffix">km</span>
+                        {stats?.latestSnapshot?.odometer_km && (
+                          <button
+                            type="button"
+                            onClick={() => setChargeOdo(Math.round(stats.latestSnapshot!.odometer_km).toString())}
+                            className="apple-chip-restore"
+                            title="Aus Kia Connect Telemetrie übernehmen"
+                          >
+                            <Gauge size={12} /> Kia
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="apple-row">
+                      <label className="apple-row-label">Zeitpunkt</label>
+                      <div className="apple-row-content">
+                        <input
+                          type="datetime-local"
+                          name="zeitpunkt"
+                          defaultValue={new Date().toISOString().slice(0, 16)}
+                          className="apple-row-datetime"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4. Grouped Inset Card: Optionale Angaben */}
+                  <div className="settings-section-header">Weitere Details (Optional)</div>
+                  <div className="apple-grouped-card">
+                    <div className="apple-row">
+                      <label className="apple-row-label">Trip-Distanz</label>
+                      <div className="apple-row-content">
+                        <input
+                          type="text"
+                          name="ev_km"
+                          placeholder="z.B. 48,0"
+                          inputMode="decimal"
+                          value={chargeEvKm}
+                          onChange={(e) => setChargeEvKm(e.target.value)}
+                          className="apple-row-input"
+                        />
+                        <span className="apple-row-suffix">km</span>
+                      </div>
+                    </div>
+
+                    <div className="apple-row">
+                      <label className="apple-row-label">Standort / Notiz</label>
+                      <div className="apple-row-content">
+                        <input
+                          type="text"
+                          name="standort"
+                          placeholder="z.B. Wallbox Garage"
+                          className="apple-row-input"
+                          style={{ maxWidth: '220px' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="apple-row">
+                      <label className="apple-row-label">Kosten überschreiben</label>
+                      <div className="apple-row-content">
+                        <input
+                          type="text"
+                          name="gesamtkosten"
+                          placeholder={
+                            calculatedCost != null
+                              ? `~ ${formatNum(calculatedCost, 2)} €`
+                              : 'z.B. 2,10'
+                          }
+                          inputMode="decimal"
+                          className="apple-row-input"
+                        />
+                        <span className="apple-row-suffix">€</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom Action Button (Apple Subdued Pill) */}
+                  <div className="apple-form-submit-row">
+                    <button type="submit" className="apple-btn-primary">
+                      <CheckCircle2 size={17} /> Ladevorgang speichern
+                    </button>
+                  </div>
                 </div>
-              </section>
-
-              <details className="form-optional">
-                <summary>Weitere Angaben <span className="badge-optional">Optional</span></summary>
-
-                <div className="form-group">
-                  <label>Tankstelle / Ort</label>
-                  <input type="text" name="tankstelle" placeholder="z.B. OMV Dornbirn, BP Lustenau" />
-                </div>
-              </details>
-
-              <div className="form-actions">
-                <button type="submit" className="btn btn-save-fuel">
-                  <CheckCircle2 size={18} /> Tankvorgang speichern
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={() => setActiveTab('dashboard')}>
-                  Abbrechen
-                </button>
               </div>
             </form>
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* TAB: HISTORY */}
+        {/* TAB: FUEL FORM (APPLE HIG GROUPED INSET MODAL) */}
         {/* ========================================================================= */}
-        {activeTab === 'history' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-              <div className="filter-chips">
+        {activeTab === 'fuel' && (
+          <div className="apple-form-container">
+            <form onSubmit={handleSaveFuel}>
+              {/* Header: iOS Modal Bar mit Abbrechen (links), Titel (Mitte) und Sichern (rechts) */}
+              <div className="apple-modal-nav">
                 <button
-                  className={`filter-chip ${historyFilter === 'all' ? 'active' : ''}`}
-                  onClick={() => setHistoryFilter('all')}
+                  type="button"
+                  className="apple-nav-action-btn apple-nav-cancel"
+                  onClick={() => setActiveTab('dashboard')}
                 >
-                  Alle ({chargingList.length + fuelList.length + snapshotList.length})
+                  Abbrechen
                 </button>
+                <span className="apple-nav-title">Tanken erfassen</span>
                 <button
-                  className={`filter-chip chip-charge ${historyFilter === 'charge' ? 'active' : ''}`}
-                  onClick={() => setHistoryFilter('charge')}
+                  type="submit"
+                  className="apple-nav-action-btn apple-nav-save"
                 >
-                  Ladungen ({chargingList.length})
-                </button>
-                <button
-                  className={`filter-chip chip-fuel ${historyFilter === 'fuel' ? 'active' : ''}`}
-                  onClick={() => setHistoryFilter('fuel')}
-                >
-                  Tanken ({fuelList.length})
-                </button>
-                <button
-                  className={`filter-chip chip-snapshot ${historyFilter === 'snapshot' ? 'active' : ''}`}
-                  onClick={() => setHistoryFilter('snapshot')}
-                >
-                  Snapshots ({snapshotList.length})
+                  Sichern
                 </button>
               </div>
 
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <button
-                  className="filter-chip"
-                  onClick={() => setHistorySortOrder(historySortOrder === 'desc' ? 'asc' : 'desc')}
-                  title="Nach Datum sortieren"
-                >
-                  {historySortOrder === 'desc' ? 'Neueste ' : 'Älteste '}
-                </button>
+              {/* 2-Column Responsive Layout on Desktop */}
+              <div className="apple-form-desktop-grid">
+                <div className="apple-form-desktop-col">
+                  {/* 1. Hero Amount Card (Liter) */}
+                  <div className="apple-hero-box">
+                    <div className="apple-hero-label">Kraftstoffmenge</div>
+                    <div className="apple-hero-amount">
+                      <input
+                        type="text"
+                        name="liter"
+                        required
+                        placeholder="0,0"
+                        autoFocus
+                        inputMode="decimal"
+                        value={fuelLiter}
+                        onChange={(e) => setFuelLiter(e.target.value)}
+                        className="apple-hero-input"
+                        style={{ color: 'var(--fuel-color)' }}
+                      />
+                      <span className="apple-hero-unit" style={{ color: 'var(--fuel-color)' }}>Liter</span>
+                    </div>
+                  </div>
 
-                <button className="filter-chip" onClick={loadHistory} title="Aktualisieren">
-                  <RefreshCw size={13} /> Aktualisieren
+                  {/* 2. Grouped Inset Card: Kraftstoff & Kosten */}
+                  <div className="settings-section-header">Kraftstoff & Kosten</div>
+                  <div className="apple-grouped-card">
+                    <div className="apple-row">
+                      <label className="apple-row-label">Preis pro Liter</label>
+                      <div className="apple-row-content">
+                        <input
+                          type="text"
+                          name="preis_pro_liter"
+                          placeholder="z.B. 1,629"
+                          inputMode="decimal"
+                          value={fuelPricePerLiter}
+                          onChange={(e) => setFuelPricePerLiter(e.target.value)}
+                          className="apple-row-input"
+                        />
+                        <span className="apple-row-suffix">€/L</span>
+                      </div>
+                    </div>
+
+                    <div className="apple-row">
+                      <label className="apple-row-label">Gesamtkosten</label>
+                      <div className="apple-row-content">
+                        <input
+                          type="text"
+                          name="gesamtkosten"
+                          placeholder={
+                            calculatedFuelCost != null
+                              ? `${formatNum(calculatedFuelCost, 2)}`
+                              : 'z.B. 52,94'
+                          }
+                          inputMode="decimal"
+                          value={fuelTotalCost}
+                          onChange={(e) => setFuelTotalCost(e.target.value)}
+                          className="apple-row-input"
+                        />
+                        <span className="apple-row-suffix">€</span>
+                      </div>
+                    </div>
+
+                    {calculatedFuelCost != null && !fuelTotalCost && (
+                      <div className="apple-row apple-row-summary-fuel">
+                        <label className="apple-row-label" style={{ color: 'var(--fuel-color)', fontWeight: 600 }}>
+                          Kostenberechnung
+                        </label>
+                        <div className="apple-row-content">
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            {fuelLiter} L × {fuelPricePerLiter} € =
+                          </span>
+                          <span className="apple-row-value-fuel">
+                            {formatCur(calculatedFuelCost)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="apple-row">
+                      <label className="apple-row-label">Status</label>
+                      <div className="apple-row-content">
+                        <label className="apple-toggle-label">
+                          <input type="checkbox" name="vollgetankt" id="vollgetankt" defaultChecked />
+                          <span>Vollgetankt</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="apple-form-desktop-col">
+                  {/* 3. Grouped Inset Card: Fahrzeug & Kilometer */}
+                  <div className="settings-section-header">Fahrzeug & Kilometer</div>
+                  <div className="apple-grouped-card">
+                    <div className="apple-row">
+                      <label className="apple-row-label">Tachostand</label>
+                      <div className="apple-row-content">
+                        {stats?.latestSnapshot?.odometer_km && (
+                          <button
+                            type="button"
+                            onClick={() => setFuelOdo(Math.round(stats.latestSnapshot!.odometer_km).toString())}
+                            className="apple-chip-restore"
+                            title="Aktuellen Kia-Telemetriewert einsetzen"
+                          >
+                            <Gauge size={12} /> Kia {Math.round(stats.latestSnapshot.odometer_km).toLocaleString('de-AT')}
+                          </button>
+                        )}
+                        <input
+                          type="text"
+                          name="odometer_km"
+                          placeholder={stats?.latestSnapshot?.odometer_km ? String(Math.round(stats.latestSnapshot.odometer_km)) : 'z.B. 45800'}
+                          inputMode="numeric"
+                          value={fuelOdo}
+                          onChange={(e) => setFuelOdo(e.target.value)}
+                          className="apple-row-input"
+                        />
+                        <span className="apple-row-suffix">km</span>
+                      </div>
+                    </div>
+
+                    <div className="apple-row">
+                      <label className="apple-row-label">Trip-Distanz</label>
+                      <div className="apple-row-content">
+                        <input
+                          type="text"
+                          name="fuel_km"
+                          placeholder="z.B. 550"
+                          inputMode="decimal"
+                          value={fuelKm}
+                          onChange={(e) => setFuelKm(e.target.value)}
+                          className="apple-row-input"
+                        />
+                        <span className="apple-row-suffix">km</span>
+                      </div>
+                    </div>
+
+                    <div className="apple-row">
+                      <label className="apple-row-label">Zeitpunkt</label>
+                      <div className="apple-row-content">
+                        <input
+                          type="datetime-local"
+                          name="zeitpunkt"
+                          defaultValue={new Date().toISOString().slice(0, 16)}
+                          className="apple-row-datetime"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4. Grouped Inset Card: Optionale Angaben */}
+                  <div className="settings-section-header">Weitere Details (Optional)</div>
+                  <div className="apple-grouped-card">
+                    <div className="apple-row">
+                      <label className="apple-row-label">Tankstelle / Ort</label>
+                      <div className="apple-row-content">
+                        <input
+                          type="text"
+                          name="tankstelle"
+                          placeholder="z.B. OMV Dornbirn, BP"
+                          className="apple-row-input"
+                          style={{ maxWidth: '220px' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom Action Button (Apple Subdued Pill) */}
+                  <div className="apple-form-submit-row">
+                    <button type="submit" className="apple-btn-primary apple-btn-primary-fuel">
+                      <CheckCircle2 size={17} /> Tankvorgang speichern
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB: HISTORY (APPLE HIG PLAIN INSET LIST & SWIPE-TO-DELETE) */}
+        {/* ========================================================================= */}
+        {activeTab === 'history' && (
+          <div className="apple-history-container">
+            {/* 1. Apple Segmented Control */}
+            <div className="apple-segmented-control">
+              <button
+                type="button"
+                className={`apple-segment-btn ${historyFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setHistoryFilter('all')}
+              >
+                <span>Alle</span>
+                <span className="apple-segment-count">({chargingList.length + fuelList.length + snapshotList.length})</span>
+              </button>
+              <button
+                type="button"
+                className={`apple-segment-btn ${historyFilter === 'charge' ? 'active' : ''}`}
+                onClick={() => setHistoryFilter('charge')}
+              >
+                <span>Laden</span>
+                <span className="apple-segment-count">({chargingList.length})</span>
+              </button>
+              <button
+                type="button"
+                className={`apple-segment-btn ${historyFilter === 'fuel' ? 'active' : ''}`}
+                onClick={() => setHistoryFilter('fuel')}
+              >
+                <span>Tanken</span>
+                <span className="apple-segment-count">({fuelList.length})</span>
+              </button>
+              <button
+                type="button"
+                className={`apple-segment-btn ${historyFilter === 'snapshot' ? 'active' : ''}`}
+                onClick={() => setHistoryFilter('snapshot')}
+              >
+                <span>Tacho</span>
+                <span className="apple-segment-count">({snapshotList.length})</span>
+              </button>
+            </div>
+
+            {/* 2. Apple Toolbar (Sort & Refresh) */}
+            <div className="apple-history-toolbar">
+              <span className="apple-history-count">
+                {historySortOrder === 'desc' ? 'Neueste zuerst' : 'Älteste zuerst'}
+              </span>
+              <div className="apple-history-actions">
+                <button
+                  type="button"
+                  className="apple-history-tool-btn"
+                  onClick={() => setHistorySortOrder(historySortOrder === 'desc' ? 'asc' : 'desc')}
+                  title="Sortierreihenfolge wechseln"
+                >
+                  {historySortOrder === 'desc' ? 'Neueste' : 'Älteste'}
+                </button>
+                <button
+                  type="button"
+                  className="apple-history-tool-btn"
+                  onClick={loadHistory}
+                  title="Verlauf aktualisieren"
+                >
+                  <RefreshCw size={13} />
                 </button>
               </div>
             </div>
 
-            {/* Unified Chronological Timeline */}
+            {/* 3. Unified Chronological Timeline in Apple Grouped List */}
             {(() => {
               const items: Array<
-                | { type: 'charge'; zeitpunkt: string; data: ChargingSession }
-                | { type: 'fuel'; zeitpunkt: string; data: FuelSession }
-                | { type: 'snapshot'; zeitpunkt: string; data: VehicleSnapshot }
+                | { type: 'charge'; idKey: string; zeitpunkt: string; data: ChargingSession }
+                | { type: 'fuel'; idKey: string; zeitpunkt: string; data: FuelSession }
+                | { type: 'snapshot'; idKey: string; zeitpunkt: string; data: VehicleSnapshot }
               > = [];
 
               if (historyFilter === 'all' || historyFilter === 'charge') {
-                chargingList.forEach((c) => items.push({ type: 'charge', zeitpunkt: c.zeitpunkt, data: c }));
+                chargingList.forEach((c) => items.push({ type: 'charge', idKey: `charge-${c.id}`, zeitpunkt: c.zeitpunkt, data: c }));
               }
               if (historyFilter === 'all' || historyFilter === 'fuel') {
-                fuelList.forEach((f) => items.push({ type: 'fuel', zeitpunkt: f.zeitpunkt, data: f }));
+                fuelList.forEach((f) => items.push({ type: 'fuel', idKey: `fuel-${f.id}`, zeitpunkt: f.zeitpunkt, data: f }));
               }
               if (historyFilter === 'all' || historyFilter === 'snapshot') {
-                // Ponytail: Only show snapshots in history when odometer value changed
                 let lastOdo: number | null = null;
                 const sortedSnaps = [...snapshotList].sort((a, b) => new Date(a.zeitpunkt).getTime() - new Date(b.zeitpunkt).getTime());
                 const dedupedSnaps = sortedSnaps.filter((s) => {
@@ -1590,7 +1988,7 @@ export function App() {
                   lastOdo = s.odometer_km;
                   return true;
                 });
-                dedupedSnaps.forEach((s) => items.push({ type: 'snapshot', zeitpunkt: s.zeitpunkt, data: s }));
+                dedupedSnaps.forEach((s) => items.push({ type: 'snapshot', idKey: `snap-${s.id}`, zeitpunkt: s.zeitpunkt, data: s }));
               }
 
               items.sort((a, b) => {
@@ -1601,331 +1999,582 @@ export function App() {
 
               if (items.length === 0) {
                 return (
-                  <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                    Noch keine Einträge vorhanden.
+                  <div className="empty-history-box">
+                    <div className="empty-history-icon">
+                      <History size={30} />
+                    </div>
+                    <div className="empty-history-title">Keine Einträge vorhanden</div>
+                    <div className="empty-history-sub">
+                      Sobald du Ladungen oder Betankungen erfasst, erscheinen sie hier im Verlauf.
+                    </div>
                   </div>
                 );
               }
 
-              return items.map((item) => {
-                if (item.type === 'charge') {
-                  const c = item.data;
-                  return (
-                    <div key={`charge-${c.id}`} className="list-item" style={{ borderLeft: '4px solid var(--ev-color)' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="badge badge-ev">Ladung</span>
-                          <span style={{ fontWeight: 600 }}>{formatNum(c.kwh, 2)} kWh</span>
-                          <span style={{ color: 'var(--text-muted)' }}>({c.quelle})</span>
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                          {formatDate(c.zeitpunkt)}
-                          {c.ev_km ? ` • EV-Trip: ${formatNum(c.ev_km, 1)} km` : ''}
-                          {c.odometer_km ? ` • Tacho: ${formatNum(c.odometer_km, 0)} km` : ''}
-                          {c.standort ? ` • ${c.standort}` : ''}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontWeight: 700, color: 'var(--ev-color)' }}>{formatCur(c.gesamtkosten)}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{formatNum(c.preis_pro_kwh, 3)} €/kWh</div>
-                        </div>
-                        <button
-                          style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
-                          title="Löschen"
-                          onClick={async () => {
-                            if (confirm('Ladevorgang wirklich löschen?')) {
-                              await deleteChargingSession(c.id);
-                              loadHistory();
-                              loadDashboard();
-                            }
-                          }}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                }
+              return (
+                <div className="apple-history-list">
+                  {items.map((item) => {
+                    const isCollapsing = deletingItemId === item.idKey;
+                    const isFullSwiped = fullSwipedItemId === item.idKey;
+                    const isSwiped = swipedItemId === item.idKey;
 
-                if (item.type === 'fuel') {
-                  const f = item.data;
-                  return (
-                    <div key={`fuel-${f.id}`} className="list-item" style={{ borderLeft: '4px solid var(--fuel-color)' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="badge badge-fuel">Tanken</span>
-                          <span style={{ fontWeight: 600 }}>{formatNum(f.liter, 2)} L</span>
-                          <span style={{ color: 'var(--text-muted)' }}>({f.tankstelle})</span>
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                          {formatDate(f.zeitpunkt)}
-                          {f.fuel_km ? ` • Benzin-Trip: ${formatNum(f.fuel_km, 1)} km` : ''}
-                          {f.odometer_km ? ` • Tacho: ${formatNum(f.odometer_km, 0)} km` : ''}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontWeight: 700, color: 'var(--fuel-color)' }}>{formatCur(f.gesamtkosten)}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{formatNum(f.preis_pro_liter, 3)} €/L</div>
-                        </div>
-                        <button
-                          style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
-                          title="Löschen"
-                          onClick={async () => {
-                            if (confirm('Tankvorgang wirklich löschen?')) {
-                              await deleteFuelSession(f.id);
-                              loadHistory();
-                              loadDashboard();
-                            }
-                          }}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                }
+                    const rowClass = `apple-swipe-row ${isCollapsing ? 'collapsing' : ''} ${isFullSwiped ? 'full-swiped' : ''} ${isSwiped ? 'swiped' : ''}`.trim();
 
-                if (item.type === 'snapshot') {
-                  const s = item.data;
-                  return (
-                    <div key={`snap-${s.id}`} className="list-item" style={{ borderLeft: '4px solid #16cfff' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="badge" style={{ backgroundColor: 'rgba(56, 189, 248, 0.2)', color: '#16cfff' }}>Tacho</span>
-                          <span style={{ fontWeight: 600 }}>{formatNum(s.odometer_km, 0)} km</span>
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                          {formatDate(s.zeitpunkt)}
-                          {s.ev_range_km ? ` • EV: ${formatNum(s.ev_range_km, 0)} km` : ''}
-                          {s.fuel_range_km ? ` • Benzin: ${formatNum(s.fuel_range_km, 0)} km` : ''}
-                        </div>
-                      </div>
-                      <button
-                        style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
-                        title="Löschen"
-                        onClick={async () => {
-                          if (confirm('Snapshot löschen?')) {
-                            await deleteSnapshot(s.id);
-                            loadHistory();
-                            loadDashboard();
+                    if (item.type === 'charge') {
+                      const c = item.data;
+                      return (
+                        <div
+                          key={item.idKey}
+                          className={rowClass}
+                          onTouchStart={handleTouchStart}
+                          onTouchMove={handleTouchMove}
+                          onTouchEnd={(e) =>
+                            handleTouchEnd(
+                              e,
+                              () => setSwipedItemId(item.idKey),
+                              () => { if (swipedItemId === item.idKey) setSwipedItemId(null); },
+                              () => {
+                                setFullSwipedItemId(item.idKey);
+                                handleDeleteHistoryItem('charge', c.id, item.idKey);
+                              },
+                            )
                           }
-                        }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  );
-                }
+                          onClick={() => {
+                            if (swipedItemId) setSwipedItemId(null);
+                          }}
+                        >
+                          <div className="apple-swipe-content">
+                            <div className="apple-item-leading">
+                              <div className="apple-item-icon charge">
+                                <Zap size={17} />
+                              </div>
+                              <div className="apple-item-details">
+                                <div className="apple-item-title">
+                                  Ladung {c.quelle ? `· ${c.quelle}` : ''}
+                                </div>
+                                <div className="apple-item-sub">
+                                  {formatDate(c.zeitpunkt)}
+                                  {c.odometer_km ? ` · ${formatNum(c.odometer_km, 0)} km` : ''}
+                                  {c.standort ? ` · ${c.standort}` : ''}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="apple-item-trailing">
+                              <span className="apple-item-metric charge">+{formatNum(c.kwh, 2)} kWh</span>
+                              <span className="apple-item-secondary">
+                                {formatCur(c.gesamtkosten)} ({formatNum(c.preis_pro_kwh, 3)} €)
+                              </span>
+                            </div>
+                          </div>
 
-                return null;
-              });
+                          {/* Swipe Delete Action */}
+                          <div className="apple-swipe-actions">
+                            <button
+                              type="button"
+                              className="apple-swipe-delete-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteHistoryItem('charge', c.id, item.idKey);
+                              }}
+                            >
+                              <Trash2 size={16} />
+                              <span>Löschen</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (item.type === 'fuel') {
+                      const f = item.data;
+                      return (
+                        <div
+                          key={item.idKey}
+                          className={rowClass}
+                          onTouchStart={handleTouchStart}
+                          onTouchMove={handleTouchMove}
+                          onTouchEnd={(e) =>
+                            handleTouchEnd(
+                              e,
+                              () => setSwipedItemId(item.idKey),
+                              () => { if (swipedItemId === item.idKey) setSwipedItemId(null); },
+                              () => {
+                                setFullSwipedItemId(item.idKey);
+                                handleDeleteHistoryItem('fuel', f.id, item.idKey);
+                              },
+                            )
+                          }
+                          onClick={() => {
+                            if (swipedItemId) setSwipedItemId(null);
+                          }}
+                        >
+                          <div className="apple-swipe-content">
+                            <div className="apple-item-leading">
+                              <div className="apple-item-icon fuel">
+                                <Fuel size={17} />
+                              </div>
+                              <div className="apple-item-details">
+                                <div className="apple-item-title">
+                                  Tanken {f.tankstelle ? `· ${f.tankstelle}` : ''}
+                                </div>
+                                <div className="apple-item-sub">
+                                  {formatDate(f.zeitpunkt)}
+                                  {f.odometer_km ? ` · ${formatNum(f.odometer_km, 0)} km` : ''}
+                                  {f.fuel_km ? ` · Trip ${formatNum(f.fuel_km, 1)} km` : ''}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="apple-item-trailing">
+                              <span className="apple-item-metric fuel">+{formatNum(f.liter, 2)} L</span>
+                              <span className="apple-item-secondary">
+                                {formatCur(f.gesamtkosten)} ({formatNum(f.preis_pro_liter, 3)} €)
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Swipe Delete Action */}
+                          <div className="apple-swipe-actions">
+                            <button
+                              type="button"
+                              className="apple-swipe-delete-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteHistoryItem('fuel', f.id, item.idKey);
+                              }}
+                            >
+                              <Trash2 size={16} />
+                              <span>Löschen</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (item.type === 'snapshot') {
+                      const s = item.data;
+                      return (
+                        <div
+                          key={item.idKey}
+                          className={rowClass}
+                          onTouchStart={handleTouchStart}
+                          onTouchMove={handleTouchMove}
+                          onTouchEnd={(e) =>
+                            handleTouchEnd(
+                              e,
+                              () => setSwipedItemId(item.idKey),
+                              () => { if (swipedItemId === item.idKey) setSwipedItemId(null); },
+                              () => {
+                                setFullSwipedItemId(item.idKey);
+                                handleDeleteHistoryItem('snapshot', s.id, item.idKey);
+                              },
+                            )
+                          }
+                          onClick={() => {
+                            if (swipedItemId) setSwipedItemId(null);
+                          }}
+                        >
+                          <div className="apple-swipe-content">
+                            <div className="apple-item-leading">
+                              <div className="apple-item-icon snapshot">
+                                <Gauge size={17} />
+                              </div>
+                              <div className="apple-item-details">
+                                <div className="apple-item-title">
+                                  Tachostand · {formatNum(s.odometer_km, 0)} km
+                                </div>
+                                <div className="apple-item-sub">
+                                  {formatDate(s.zeitpunkt)}
+                                  {s.ev_range_km ? ` · EV ${formatNum(s.ev_range_km, 0)} km` : ''}
+                                  {s.fuel_range_km ? ` · Benzin ${formatNum(s.fuel_range_km, 0)} km` : ''}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="apple-item-trailing">
+                              <span className="apple-item-metric snapshot">
+                                {s.soc_percent != null ? `${s.soc_percent} %` : `${formatNum(s.odometer_km, 0)} km`}
+                              </span>
+                              <span className="apple-item-secondary">Telemetrie</span>
+                            </div>
+                          </div>
+
+                          {/* Swipe Delete Action */}
+                          <div className="apple-swipe-actions">
+                            <button
+                              type="button"
+                              className="apple-swipe-delete-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteHistoryItem('snapshot', s.id, item.idKey);
+                              }}
+                            >
+                              <Trash2 size={16} />
+                              <span>Löschen</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return null;
+                  })}
+                </div>
+              );
             })()}
           </div>
         )}
 
         {/* ========================================================================= */}
+        {/* ========================================================================= */}
         {/* TAB: SETTINGS & TARIFFS */}
+        {/* ========================================================================= */}
+        {/* ========================================================================= */}
+        {/* TAB: SETTINGS & TARIFFS (APPLE HIG INSET GROUPED) */}
         {/* ========================================================================= */}
         {activeTab === 'settings' && (
           <div>
-            <div className="card">
-              <div className="card-title">
-                <Settings size={18} /> Dashboard-Darstellung
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label htmlFor="dashboard-theme">Hintergrund</label>
-                <select
-                  id="dashboard-theme"
-                  value={dashboardTheme}
-                  onChange={(event) => setDashboardTheme(event.target.value as 'oled' | 'blue')}
-                >
-                  <option value="oled">OLED Schwarz</option>
-                  <option value="blue">Dunkles Blau</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Tariffs List */}
-            <div className="card">
-              <div className="card-title">
-                <Settings size={18} /> Hinterlegte Ladetarife
-              </div>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                Diese Tarife dienen als automatische Preisvorbelegung, falls bei einer Ladung kein individueller Preis eingetragen wird.
-              </p>
-
-              {tariffs.map((t) => (
-                <div key={t.id} className="list-item">
-                  <div>
-                    <strong>{t.bezeichnung}</strong>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      Quelle-Key: <code>{t.quelle}</code> • Gültig ab: {t.gueltig_ab}
+            <div className="apple-settings-grid">
+              {/* Desktop Column 1: Appearance, Tariffs & Backup */}
+              <div>
+                {/* 1. Darstellung (Appearance) */}
+                <div className="settings-section-header">Darstellung</div>
+                <div className="apple-grouped-card">
+                  <div className="apple-row">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Settings size={17} style={{ color: 'var(--text-muted)' }} />
+                      <span className="apple-row-label">Themen-Modus</span>
+                    </div>
+                    <div className="apple-row-content">
+                      <select
+                        id="dashboard-theme"
+                        value={dashboardTheme}
+                        onChange={(event) => setDashboardTheme(event.target.value as 'oled' | 'blue')}
+                        className="apple-row-select"
+                      >
+                        <option value="oled">Apple OLED Schwarz</option>
+                        <option value="blue">Dunkles Blau</option>
+                      </select>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ fontWeight: 700, color: 'var(--ev-color)' }}>
-                      {formatNum(t.preis_pro_kwh, 3)} €/kWh
+                </div>
+
+                {/* 2. Ladetarife & Strompreise */}
+                <div className="settings-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Ladetarife & Strompreise</span>
+                  <button
+                    type="button"
+                    className="apple-history-tool-btn"
+                    style={{ color: 'var(--primary)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                    onClick={() => setIsAddTariffOpen(true)}
+                  >
+                    <Plus size={14} /> Neu
+                  </button>
+                </div>
+
+                <div className="apple-grouped-card">
+                  {tariffs.length === 0 ? (
+                    <div className="apple-row" style={{ justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', padding: '24px 16px' }}>
+                      Keine Ladetarife hinterlegt
                     </div>
+                  ) : (
+                    tariffs.map((t) => {
+                      const isCollapsing = deletingTariffId === t.id;
+                      const isFullSwiped = fullSwipedTariffId === t.id;
+                      const isSwiped = swipedTariffId === t.id;
+                      const rowClass = `apple-swipe-row ${isCollapsing ? 'collapsing' : ''} ${isFullSwiped ? 'full-swiped' : ''} ${isSwiped ? 'swiped' : ''}`.trim();
+
+                      return (
+                        <div
+                          key={t.id}
+                          className={rowClass}
+                          onTouchStart={handleTouchStart}
+                          onTouchMove={handleTouchMove}
+                          onTouchEnd={(e) =>
+                            handleTouchEnd(
+                              e,
+                              () => setSwipedTariffId(t.id),
+                              () => { if (swipedTariffId === t.id) setSwipedTariffId(null); },
+                              () => {
+                                setFullSwipedTariffId(t.id);
+                                handleDeleteTariffItem(t.id, t.bezeichnung);
+                              },
+                            )
+                          }
+                          onClick={() => {
+                            if (swipedTariffId) setSwipedTariffId(null);
+                          }}
+                        >
+                          <div className="apple-swipe-content">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+                              <div className="tariff-icon-badge">
+                                <Zap size={16} />
+                              </div>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: '0.92rem', fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {t.bezeichnung}
+                                </div>
+                                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                  ID: <code>{t.quelle}</code> · Gültig ab {t.gueltig_ab}
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                              <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--ev-color)', fontVariantNumeric: 'tabular-nums' }}>
+                                {formatNum(t.preis_pro_kwh, 3)} €/kWh
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="apple-swipe-actions">
+                            <button
+                              type="button"
+                              className="apple-swipe-delete-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTariffItem(t.id, t.bezeichnung);
+                              }}
+                            >
+                              <Trash2 size={16} />
+                              <span>Löschen</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+
+                  <button
+                    type="button"
+                    className="apple-row-action-btn"
+                    onClick={() => setIsAddTariffOpen(true)}
+                  >
+                    <Plus size={15} style={{ color: 'var(--primary)' }} />
+                    <span>Neuen Tarif anlegen...</span>
+                  </button>
+                </div>
+
+                {/* 3. Datensicherung */}
+                <div className="settings-section-header">Datensicherung</div>
+                <div className="apple-grouped-card">
+                  <div className="apple-row">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Database size={17} style={{ color: 'var(--primary)' }} />
+                      <span className="apple-row-label">Tägliche Datensicherung</span>
+                    </div>
+                    <div className="apple-row-content">
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Automatisch aktiv</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="apple-row-action-btn"
+                    onClick={handleBackup}
+                  >
+                    <Database size={15} style={{ color: 'var(--primary)' }} />
+                    <span>Manuelles Backup jetzt ausführen</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Desktop Column 2: Kia Connect Telemetry & Credentials */}
+              <div>
+                {/* 4. Kia Connect Telemetrie */}
+                <div className="settings-section-header">Kia Connect Telemetrie</div>
+                <div className="apple-grouped-card">
+                  <div className="apple-row">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <RefreshCw size={17} style={{ color: 'var(--primary)' }} />
+                      <span className="apple-row-label">Cloud-Verbindung</span>
+                    </div>
+                    <div className="apple-row-content">
+                      <span className={kiaStatus?.configured ? 'settings-badge-ok' : 'settings-badge-pending'}>
+                        {kiaStatus?.configured ? `Verbunden (${kiaStatus.username})` : 'Nicht eingerichtet'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="apple-row-action-btn"
+                    onClick={() => handleKiaSync(false)}
+                    disabled={isKiaSyncing}
+                  >
+                    <RefreshCw size={15} className={isKiaSyncing ? 'spin' : ''} style={{ color: 'var(--primary)' }} />
+                    <span>{isKiaSyncing ? 'Synchronisiere...' : 'Telemetrie abrufen (Cache)'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="apple-row-action-btn"
+                    onClick={() => handleKiaSync(true)}
+                    disabled={isKiaSyncing}
+                    title="Weckt das Auto auf für Live-Daten"
+                  >
+                    <Radio size={15} style={{ color: 'var(--fuel-color)' }} />
+                    <span>Live-Fahrzeugabfrage erzwingen</span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>Weckt Auto</span>
+                  </button>
+                </div>
+
+                {/* 5. Kia Zugangsdaten */}
+                <div className="settings-section-header">Kia Zugangsdaten</div>
+                <form onSubmit={handleSaveKiaConfig}>
+                  <div className="apple-grouped-card">
+                    <div className="apple-row">
+                      <span className="apple-row-label">E-Mail / Benutzer *</span>
+                      <div className="apple-row-content">
+                        <input
+                          type="email"
+                          value={kiaUsernameInput}
+                          onChange={(e) => setKiaUsernameInput(e.target.value)}
+                          required
+                          placeholder="kia-account@beispiel.at"
+                          className="apple-row-input"
+                          style={{ maxWidth: '220px' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="apple-row">
+                      <span className="apple-row-label">Passwort {kiaStatus?.configured ? '(optional)' : '*'}</span>
+                      <div className="apple-row-content">
+                        <input
+                          type="password"
+                          value={kiaPasswordInput}
+                          onChange={(e) => setKiaPasswordInput(e.target.value)}
+                          placeholder={kiaStatus?.configured ? '••••••••' : 'Passwort'}
+                          className="apple-row-input"
+                          style={{ maxWidth: '160px' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="apple-row">
+                      <span className="apple-row-label">PIN (optional)</span>
+                      <div className="apple-row-content">
+                        <input
+                          type="password"
+                          value={kiaPinInput}
+                          onChange={(e) => setKiaPinInput(e.target.value)}
+                          placeholder="PIN"
+                          maxLength={6}
+                          className="apple-row-input"
+                          style={{ maxWidth: '100px' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="apple-row">
+                      <span className="apple-row-label">Standardmäßig Live-Abfrage</span>
+                      <div className="apple-row-content">
+                        <label className="apple-toggle-label" style={{ margin: 0 }}>
+                          <input
+                            type="checkbox"
+                            checked={kiaForceRefresh}
+                            onChange={(e) => setKiaForceRefresh(e.target.checked)}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
                     <button
-                      style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
-                      title="Tarif löschen"
-                      onClick={async () => {
-                        if (confirm(`Tarif "${t.bezeichnung}" löschen?`)) {
-                          await deleteTariff(t.id);
-                          loadTariffs();
-                        }
-                      }}
+                      type="submit"
+                      className="apple-row-action-btn"
+                      style={{ color: 'var(--primary)', fontWeight: 600, justifyContent: 'center' }}
                     >
-                      <Trash2 size={16} />
+                      <CheckCircle2 size={15} />
+                      <span>Zugangsdaten speichern</span>
                     </button>
                   </div>
-                </div>
-              ))}
-
-              {/* Form to add a new tariff */}
-              <form onSubmit={handleAddTariff} style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
-                <h4 style={{ fontSize: '0.95rem', marginBottom: '12px' }}>Neuen Tarif hinzufügen</h4>
-                <div className="grid-2">
-                  <div className="form-group">
-                    <label>Quelle (z.B. zuhause, vkw, enbw) *</label>
-                    <input type="text" name="quelle" required placeholder="z.B. vkw" />
-                  </div>
-                  <div className="form-group">
-                    <label>Bezeichnung *</label>
-                    <input type="text" name="bezeichnung" required placeholder="z.B. VKW Ladetarif 2026" />
-                  </div>
-                </div>
-                <div className="grid-2">
-                  <div className="form-group">
-                    <label>Preis pro kWh (€) *</label>
-                    <input type="text" name="preis_pro_kwh" required placeholder="z.B. 0,38" inputMode="decimal" />
-                  </div>
-                  <div className="form-group">
-                    <label>Gültig ab (Datum) *</label>
-                    <input type="date" name="gueltig_ab" required defaultValue={new Date().toISOString().slice(0, 10)} />
-                  </div>
-                </div>
-                <button type="submit" className="btn btn-secondary" style={{ width: 'auto' }}>
-                  + Tarif speichern
-                </button>
-              </form>
+                </form>
+              </div>
             </div>
 
-            {/* Kia Connect / UVO Integration */}
-            <div className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                <div className="card-title" style={{ margin: 0 }}>
-                  <RefreshCw size={18} color="#16cfff" /> Kia Connect / UVO Telemetrie
+            {/* Apple Modal Form Sheet: Neuer Tarif */}
+            {isAddTariffOpen && (
+              <div className="apple-modal-overlay" onClick={() => setIsAddTariffOpen(false)}>
+                <div className="apple-modal-sheet" onClick={(e) => e.stopPropagation()}>
+                  <div className="apple-modal-nav" style={{ padding: '0 0 16px' }}>
+                    <button
+                      type="button"
+                      className="apple-nav-action-btn apple-nav-cancel"
+                      onClick={() => setIsAddTariffOpen(false)}
+                    >
+                      Abbrechen
+                    </button>
+                    <span className="apple-nav-title">Neuer Tarif</span>
+                    <button
+                      type="submit"
+                      form="add-tariff-modal-form"
+                      className="apple-nav-action-btn apple-nav-save"
+                    >
+                      Sichern
+                    </button>
+                  </div>
+
+                  <form id="add-tariff-modal-form" onSubmit={handleAddTariff}>
+                    <div className="apple-grouped-card" style={{ marginBottom: 0 }}>
+                      <div className="apple-row">
+                        <span className="apple-row-label">Kennung *</span>
+                        <div className="apple-row-content">
+                          <input
+                            type="text"
+                            name="quelle"
+                            required
+                            placeholder="z.B. vkw, enbw"
+                            className="apple-row-input"
+                            style={{ maxWidth: '180px' }}
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+
+                      <div className="apple-row">
+                        <span className="apple-row-label">Bezeichnung *</span>
+                        <div className="apple-row-content">
+                          <input
+                            type="text"
+                            name="bezeichnung"
+                            required
+                            placeholder="z.B. VKW Ladetarif 2026"
+                            className="apple-row-input"
+                            style={{ maxWidth: '200px' }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="apple-row">
+                        <span className="apple-row-label">Preis (€/kWh) *</span>
+                        <div className="apple-row-content">
+                          <input
+                            type="text"
+                            name="preis_pro_kwh"
+                            required
+                            placeholder="0,38"
+                            inputMode="decimal"
+                            className="apple-row-input"
+                            style={{ maxWidth: '100px' }}
+                          />
+                          <span className="apple-row-suffix">€</span>
+                        </div>
+                      </div>
+
+                      <div className="apple-row">
+                        <span className="apple-row-label">Gültig ab *</span>
+                        <div className="apple-row-content">
+                          <input
+                            type="date"
+                            name="gueltig_ab"
+                            required
+                            defaultValue={new Date().toISOString().slice(0, 10)}
+                            className="apple-row-datetime"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </form>
                 </div>
-                <span
-                  className="badge"
-                  style={{
-                    backgroundColor: kiaStatus?.configured ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                    color: kiaStatus?.configured ? '#34d399' : '#fbbf24',
-                  }}
-                >
-                  {kiaStatus?.configured ? `Verbunden (${kiaStatus.username})` : 'Nicht eingerichtet'}
-                </span>
               </div>
-
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                Ruft automatisch den aktuellen Gesamtkilometerstand, Akkuladestand (SOC) und Restreichweiten aus deinem Kia Connect Konto ab.
-                Standardmäßig wird der batterieschonende Cloud-Cache verwendet (kein Wecken des Fahrzeugs / keine 12V-Entladung).
-              </p>
-
-              {/* Sync Actions */}
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  style={{ width: 'auto' }}
-                  onClick={() => handleKiaSync(false)}
-                  disabled={isKiaSyncing}
-                >
-                  <RefreshCw size={16} className={isKiaSyncing ? 'spin' : ''} />
-                  {isKiaSyncing ? 'Synchronisiere...' : 'Jetzt Telemetrie abrufen (Cache)'}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ width: 'auto' }}
-                  onClick={() => handleKiaSync(true)}
-                  disabled={isKiaSyncing}
-                  title="Weckt das Auto auf für Echtzeitdaten"
-                >
-                  Live-Fahrzeugabfrage erzwingen
-                </button>
-              </div>
-
-              {/* Configuration Form */}
-              <form onSubmit={handleSaveKiaConfig} style={{ paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
-                <h4 style={{ fontSize: '0.95rem', marginBottom: '12px' }}>Kia Connect Zugangsdaten</h4>
-                <div className="grid-2">
-                  <div className="form-group">
-                    <label>Kia Account E-Mail / Benutzername *</label>
-                    <input
-                      type="email"
-                      value={kiaUsernameInput}
-                      onChange={(e) => setKiaUsernameInput(e.target.value)}
-                      required
-                      placeholder="deine-kia-email@beispiel.de"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Passwort {kiaStatus?.configured ? '(leer lassen um beizubehalten)' : '*'}</label>
-                    <input
-                      type="password"
-                      value={kiaPasswordInput}
-                      onChange={(e) => setKiaPasswordInput(e.target.value)}
-                      placeholder={kiaStatus?.configured ? '••••••••' : 'Kia Connect Passwort'}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid-2">
-                  <div className="form-group">
-                    <label>PIN (optional, meist nicht erforderlich)</label>
-                    <input
-                      type="password"
-                      value={kiaPinInput}
-                      onChange={(e) => setKiaPinInput(e.target.value)}
-                      placeholder="PIN falls vergeben"
-                      maxLength={6}
-                    />
-                  </div>
-                  <div className="form-group" style={{ display: 'flex', alignItems: 'center', marginTop: '24px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0 }}>
-                      <input
-                        type="checkbox"
-                        checked={kiaForceRefresh}
-                        onChange={(e) => setKiaForceRefresh(e.target.checked)}
-                        style={{ width: 'auto' }}
-                      />
-                      Standardmäßig Live-Abfrage erzwingen (Force)
-                    </label>
-                  </div>
-                </div>
-
-                <button type="submit" className="btn btn-secondary" style={{ width: 'auto' }}>
-                  Zugangsdaten speichern
-                </button>
-              </form>
-            </div>
-
-            {/* Backup Management */}
-            <div className="card">
-              <div className="card-title">
-                <Database size={18} /> Datenbank & Datensicherung
-              </div>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                Die SQLite-Datenbank wird täglich automatisch gesichert. Hier kann jederzeit eine manuelle Sicherungskopie erzeugt werden.
-              </p>
-              <button className="btn btn-primary" style={{ width: 'auto' }} onClick={handleBackup}>
-                <Database size={16} /> Manuelles Backup jetzt ausführen
-              </button>
-            </div>
+            )}
           </div>
         )}
       </main>
@@ -1973,6 +2622,7 @@ export function App() {
           <span>Setup</span>
         </button>
       </nav>
+      </div>
     </div>
   );
 }
