@@ -1673,3 +1673,24 @@ input:focus, select:focus, textarea:focus {
 
 /* Violett: 12-V-Akku und ergänzende Telemetrie */
 .tile-icon-violet { color: var(--violet); }
+
+/* Schnellwahl Ladung: eine Zeile, drei gleich breite Felder */
+.quick-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.quick-row .quick-chip {
+  justify-content: center;
+  width: 100%;
+  padding: 8px 6px;
+  font-size: var(--font-sm);
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+}
+
+.form-section {
+  margin-bottom: var(--space-4);
+}

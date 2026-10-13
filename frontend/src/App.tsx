@@ -1094,7 +1094,6 @@ export function App() {
 
             <form onSubmit={handleSaveCharge}>
               <section className="form-section">
-                <h3 className="form-section-title">Ladedaten</h3>
               <div className="form-group">
                 <div className="field-head">
                   <label>Geladene Menge in kWh *</label>
@@ -1190,7 +1189,7 @@ export function App() {
                   value={chargeKwh}
                   onChange={(e) => setChargeKwh(e.target.value)}
                 />
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                <div className="quick-row">
                   {stats?.latestSnapshot?.soc_percent != null && stats.latestSnapshot.soc_percent < 100 && (() => {
                     const soc = stats.latestSnapshot.soc_percent;
                     const needed = ((100 - soc) / 100 * 8.3).toFixed(1).replace('.', ',');
@@ -1200,7 +1199,7 @@ export function App() {
                         onClick={() => setChargeKwh(needed)}
                         className="quick-chip"
                       >
-                        Auf 100% (~{needed} kWh)
+                        Auf 100 % · {needed}
                       </button>
                     );
                   })()}
@@ -1209,23 +1208,21 @@ export function App() {
                     onClick={() => setChargeKwh('8,3')}
                     className="quick-chip"
                   >
-                    100% Voll (8,3 kWh)
+                    Voll · 8,3
                   </button>
                   <button
                     type="button"
                     onClick={() => setChargeKwh('5,0')}
                     className="quick-chip"
                   >
-                    5,0 kWh
+                    5,0
                   </button>
                 </div>
-                <div className="input-helper">Vom VKW-Display / Zähler oder oben per Akku-% berechnen</div>
               </div>
 
               </section>
 
               <section className="form-section">
-                <h3 className="form-section-title">Ladetarif und Kosten</h3>
               <div className="grid-2">
                 <div className="form-group">
                   <div className="field-head">
@@ -1296,15 +1293,9 @@ export function App() {
                     value={chargePrice}
                     onChange={(e) => setChargePrice(e.target.value)}
                   />
-                  <div className="input-helper">
-                    {activeTariffForQuelle ? (
-                      <span style={{ color: 'var(--ev-color)' }}>
-                        ✓ Tarif aktiv: {formatNum(activeTariffForQuelle.preis_pro_kwh, 3)} €/kWh ({activeTariffForQuelle.bezeichnung})
-                      </span>
-                    ) : (
-                      <span>Kein Tarif hinterlegt – bitte Preis manuell eintragen</span>
-                    )}
-                  </div>
+                  {!activeTariffForQuelle && (
+                    <div className="input-helper">Kein Tarif hinterlegt – bitte Preis manuell eintragen</div>
+                  )}
                 </div>
               </div>
 
@@ -1318,7 +1309,6 @@ export function App() {
               </section>
 
               <section className="form-section">
-                <h3 className="form-section-title">Fahrzeugdaten</h3>
               <div className="grid-2">
                 <div className="form-group">
                   <div className="field-head">
@@ -1394,7 +1384,7 @@ export function App() {
 
               <div className="form-actions">
                 <button type="submit" className="btn btn-primary btn-save-ev">
-                  <CheckCircle2 size={18} /> Ladevorgang speichern
+                  <CheckCircle2 size={18} /> Speichern
                 </button>
                 <button type="button" className="btn btn-secondary" onClick={() => setActiveTab('dashboard')}>
                   Abbrechen
