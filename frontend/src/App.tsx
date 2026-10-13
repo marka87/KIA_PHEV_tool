@@ -391,7 +391,12 @@ export function App() {
 
   // Format Helpers
   const formatCur = (n: number) => n.toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-  const formatKmCur = (n: number) => n.toLocaleString('de-AT', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + ' €/km';
+  const kmCurNode = (n: number) => (
+    <>
+      {n.toLocaleString('de-AT', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+      <span className="cost-unit"> €/km</span>
+    </>
+  );
   const formatNum = (n: number, decimals = 1) => n.toLocaleString('de-AT', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   const formatDate = (iso: string) => {
     try {
@@ -1099,7 +1104,7 @@ export function App() {
                     {/* EV Column */}
                     <div className="cost-col-ev">
                       <div className="cost-col-header-ev">Elektro</div>
-                      <div className="cost-col-main-val-ev">{formatKmCur(stats.evMetrics.costPerKm)}</div>
+                      <div className="cost-col-main-val-ev">{kmCurNode(stats.evMetrics.costPerKm)}</div>
                       <div className="cost-col-sub-val">
                         {formatCur(stats.evMetrics.costPer100Km)} / 100 km
                       </div>
@@ -1135,7 +1140,7 @@ export function App() {
                     {/* Fuel Column */}
                     <div className="cost-col-fuel">
                       <div className="cost-col-header-fuel">Benzin</div>
-                      <div className="cost-col-main-val-fuel">{formatKmCur(stats.fuelMetrics.costPerKm)}</div>
+                      <div className="cost-col-main-val-fuel">{kmCurNode(stats.fuelMetrics.costPerKm)}</div>
                       <div className="cost-col-sub-val">
                         {formatCur(stats.fuelMetrics.costPer100Km)} / 100 km
                       </div>
@@ -1534,7 +1539,7 @@ export function App() {
                             <>
                               {activeTariffs.map((t) => (
                                 <option key={t.id} value={t.quelle}>
-                                  {t.bezeichnung} ({formatNum(t.preis_pro_kwh, 3)} €)
+                                  {t.bezeichnung}
                                 </option>
                               ))}
                               {!activeTariffs.some((t) => t.quelle.toLowerCase() === 'sonstige') && (
@@ -1686,12 +1691,6 @@ export function App() {
                     </div>
                   </div>
 
-                  {/* Bottom Action Button (Apple Subdued Pill) */}
-                  <div className="apple-form-submit-row">
-                    <button type="submit" className="apple-btn-primary">
-                      <CheckCircle2 size={17} /> Ladevorgang speichern
-                    </button>
-                  </div>
                 </div>
               </div>
             </form>
@@ -1888,12 +1887,6 @@ export function App() {
                     </div>
                   </div>
 
-                  {/* Bottom Action Button (Apple Subdued Pill) */}
-                  <div className="apple-form-submit-row">
-                    <button type="submit" className="apple-btn-primary apple-btn-primary-fuel">
-                      <CheckCircle2 size={17} /> Tankvorgang speichern
-                    </button>
-                  </div>
                 </div>
               </div>
             </form>

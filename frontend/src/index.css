@@ -2870,3 +2870,40 @@ input:focus, select:focus, textarea:focus {
 
 
 
+
+/* km-Kosten: Einheit kleiner, Zahl nie umbrechen */
+.cost-col-main-val-ev,
+.cost-col-main-val-fuel {
+  white-space: nowrap;
+}
+
+.cost-unit {
+  font-size: 0.5em;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* Kostenkarten: gleich breite Spalten, die sich nicht aufblähen */
+.cost-card-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.cost-col-ev,
+.cost-col-fuel {
+  min-width: 0;
+}
+
+/* Handy: Bezeichnung über dem Wert, Werte dürfen umbrechen */
+@media (max-width: 639px) {
+  .cost-detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  .cost-detail-row > :last-child {
+    white-space: normal;
+    text-align: left;
+    font-size: 0.8rem;
+  }
+}
